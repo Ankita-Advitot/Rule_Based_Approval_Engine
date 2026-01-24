@@ -12,3 +12,9 @@ var (
 		"you already have a leave request for this date. first cancel the previous request then only you are allowed to apply",
 	)
 )
+var (
+	ErrExpenseBalanceMissing  = errors.New("expense balance not found")
+	ErrExpenseLimitExceeded   = errors.New("expense limit exceeded")
+	ErrInvalidExpenseAmount   = errors.New("invalid expense amount")
+	ErrInvalidExpenseCategory = errors.New("invalid expense category")
+)

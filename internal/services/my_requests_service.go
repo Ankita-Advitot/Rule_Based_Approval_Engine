@@ -96,7 +96,7 @@ func GetMyExpenseRequests(userID int64) ([]map[string]interface{}, error) {
 			category  string
 			status    string
 			comment   *string
-			createdAt string
+			createdAt time.Time
 		)
 
 		rows.Scan(&id, &amount, &category, &status, &comment, &createdAt)
@@ -107,7 +107,7 @@ func GetMyExpenseRequests(userID int64) ([]map[string]interface{}, error) {
 			"category":         category,
 			"status":           status,
 			"approval_comment": comment,
-			"created_at":       createdAt,
+			"created_at":       createdAt.Format(time.RFC3339),
 		})
 	}
 

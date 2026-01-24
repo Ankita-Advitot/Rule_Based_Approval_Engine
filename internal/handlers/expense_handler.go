@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"net/http"
 	"rule-based-approval-engine/internal/services"
 	"strconv"
+	"rule-based-approval-engine/internal/apperrors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,21 +17,78 @@ type ExpenseApplyRequest struct {
 
 func ApplyExpense(c *gin.Context) {
 	userID := c.GetInt64("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized user",
+		})
+		return
+	}
 
 	var req ExpenseApplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid input"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request payload",
+		})
 		return
 	}
 
-	err := services.ApplyExpense(userID, req.Amount, req.Category, req.Reason)
+	message, err := services.ApplyExpense(
+		userID,
+		req.Amount,
+		req.Category,
+		req.Reason,
+	)
+
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		handleApplyExpenseError(c, err)
 		return
 	}
 
-	c.JSON(201, gin.H{"message": "expense request submitted"})
+	c.JSON(http.StatusCreated, gin.H{
+		"message": message,
+	})
 }
+func handleApplyExpenseError(c *gin.Context, err error) {
+
+	switch err {
+
+	case apperrors.ErrInvalidExpenseAmount:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "expense amount must be greater than zero",
+		})
+
+	case apperrors.ErrInvalidExpenseCategory:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "expense category is required",
+		})
+
+	case apperrors.ErrExpenseLimitExceeded:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "expense limit exceeded",
+		})
+
+	case apperrors.ErrExpenseBalanceMissing:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "expense balance not found",
+		})
+
+	case apperrors.ErrRuleNotFound:
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "expense approval rules not configured",
+		})
+
+	case apperrors.ErrUserNotFound:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "user not found",
+		})
+
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to apply expense",
+		})
+	}
+}
+
 func CancelExpense(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
