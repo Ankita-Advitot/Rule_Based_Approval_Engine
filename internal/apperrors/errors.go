@@ -23,3 +23,7 @@ var (
 	ErrDiscountLimitExceeded  = errors.New("discount limit exceeded")
 	ErrDiscountBalanceMissing = errors.New("discount balance not found")
 )
+var (
+	ErrDiscountRequestNotFound = errors.New("discount request not found")
+	ErrDiscountCannotCancel    = errors.New("cannot cancel finalized discount request")
+)

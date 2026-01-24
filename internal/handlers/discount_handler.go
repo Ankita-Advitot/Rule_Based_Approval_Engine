@@ -82,21 +82,50 @@ func handleApplyDiscountError(c *gin.Context, err error) {
 		})
 	}
 }
-
 func CancelDiscount(c *gin.Context) {
 	userID := c.GetInt64("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized user",
+		})
+		return
+	}
 
 	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid request id"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request id",
+		})
 		return
 	}
 
 	err = services.CancelDiscount(userID, requestID)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		handleCancelDiscountError(c, err) // ✅ IMPORTANT
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "discount request cancelled"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "discount request cancelled",
+	})
+}
+
+func handleCancelDiscountError(c *gin.Context, err error) {
+	switch err {
+
+	case apperrors.ErrDiscountRequestNotFound:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "discount request not found",
+		})
+
+	case apperrors.ErrDiscountCannotCancel:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "this discount request cannot be cancelled",
+		})
+
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to cancel discount request",
+		})
+	}
 }

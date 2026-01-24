@@ -116,12 +116,11 @@ func ApplyDiscount(
 
 	return message, nil
 }
-
 func CancelDiscount(userID, requestID int64) error {
 	ctx := context.Background()
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return err
+		return errors.New("unable to start transaction")
 	}
 	defer tx.Rollback(ctx)
 
@@ -136,12 +135,17 @@ func CancelDiscount(userID, requestID int64) error {
 		requestID, userID,
 	).Scan(&status, &percent)
 
+	//  HANDLE NO ROWS PROPERLY
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrDiscountRequestNotFound
+	}
 	if err != nil {
-		return err
+		return errors.New("failed to fetch discount request")
 	}
 
-	if status == "APPROVED" || status == "REJECTED" {
-		return errors.New("cannot cancel finalized request")
+	// Cannot cancel finalized request
+	if status == "APPROVED" || status == "REJECTED" || status == "CANCELLED" {
+		return apperrors.ErrDiscountCannotCancel
 	}
 
 	_, err = tx.Exec(
@@ -152,9 +156,10 @@ func CancelDiscount(userID, requestID int64) error {
 		requestID,
 	)
 	if err != nil {
-		return err
+		return errors.New("failed to cancel discount request")
 	}
 
+	// 🔄 Restore discount if auto-approved
 	if status == "AUTO_APPROVED" {
 		_, err = tx.Exec(
 			ctx,
@@ -164,9 +169,13 @@ func CancelDiscount(userID, requestID int64) error {
 			percent, userID,
 		)
 		if err != nil {
-			return err
+			return errors.New("failed to restore discount balance")
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return errors.New("failed to commit transaction")
+	}
+
+	return nil
 }
