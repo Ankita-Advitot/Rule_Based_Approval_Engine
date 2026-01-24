@@ -18,3 +18,8 @@ var (
 	ErrInvalidExpenseAmount   = errors.New("invalid expense amount")
 	ErrInvalidExpenseCategory = errors.New("invalid expense category")
 )
+var (
+	ErrInvalidDiscountPercent = errors.New("invalid discount percentage")
+	ErrDiscountLimitExceeded  = errors.New("discount limit exceeded")
+	ErrDiscountBalanceMissing = errors.New("discount balance not found")
+)

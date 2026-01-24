@@ -84,10 +84,11 @@ func Register(r *gin.Engine) {
 			discounts.POST("/:id/cancel", handlers.CancelDiscount)
 			discounts.GET("/my", handlers.GetMyDiscounts)
 
-			//			Manager/Admin (if you add later)
-			// discounts.GET("/pending", handlers.GetPendingDiscounts)
-			// discounts.POST("/:id/approve", handlers.ApproveDiscount)
-			// discounts.POST("/:id/reject", handlers.RejectDiscount)
+			// Manager/Admin (if you add later)
+
+			discounts.GET("/pending", handlers.GetPendingDiscounts)
+			discounts.POST("/:id/approve", handlers.ApproveDiscount)
+			discounts.POST("/:id/reject", handlers.RejectDiscount)
 		}
 
 		// -----------------------
