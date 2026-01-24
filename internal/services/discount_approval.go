@@ -2,8 +2,8 @@ package services
 
 import (
 	"context"
-	"errors"
 
+	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/database"
 
 	"github.com/jackc/pgx/v5"
@@ -18,7 +18,7 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 	if role == "MANAGER" {
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT dr.id, u.name, dr.percentage
+			`SELECT dr.id, u.name, dr.discount_percentage
 			 FROM discount_requests dr
 			 JOIN users u ON dr.employee_id = u.id
 			 WHERE dr.status='PENDING' AND u.manager_id=$1`,
@@ -27,13 +27,13 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 	} else if role == "ADMIN" {
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT dr.id, u.name, dr.percentage
+			`SELECT dr.id, u.name, dr.discount_percentage
 			 FROM discount_requests dr
 			 JOIN users u ON dr.employee_id = u.id
-			 WHERE dr.status='PENDING' AND u.role='MANAGER'`,
+			 WHERE dr.status='PENDING'`,
 		)
 	} else {
-		return nil, errors.New("unauthorized")
+		return nil, apperrors.ErrUnauthorizedApprover
 	}
 
 	if err != nil {
@@ -61,26 +61,89 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 	return result, nil
 }
 
-func ApproveDiscount(role string, approverID, requestID int64) error {
-	ctx := context.Background()
-
-	_, err := database.DB.Exec(
-		ctx,
-		`UPDATE discount_requests SET status='APPROVED'
-		 WHERE id=$1 AND status='PENDING'`,
-		requestID,
-	)
-	return err
+func ApproveDiscount(role string, approverID, requestID int64, comment string) error {
+	return processDiscountApproval(role, approverID, requestID, comment, "APPROVED")
 }
 
-func RejectDiscount(role string, approverID, requestID int64) error {
+func RejectDiscount(role string, approverID, requestID int64, comment string) error {
+	return processDiscountApproval(role, approverID, requestID, comment, "REJECTED")
+}
+
+func processDiscountApproval(
+	role string,
+	approverID, requestID int64,
+	comment string,
+	newStatus string,
+) error {
+
 	ctx := context.Background()
 
-	_, err := database.DB.Exec(
+	if role != "MANAGER" && role != "ADMIN" {
+		return apperrors.ErrUnauthorizedApprover
+	}
+
+	tx, err := database.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var employeeID int64
+	var status string
+
+	err = tx.QueryRow(
 		ctx,
-		`UPDATE discount_requests SET status='REJECTED'
-		 WHERE id=$1 AND status='PENDING'`,
+		`SELECT employee_id, status
+		 FROM discount_requests
+		 WHERE id=$1`,
 		requestID,
+	).Scan(&employeeID, &status)
+
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrDiscountRequestNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	if status != "PENDING" {
+		return apperrors.ErrDiscountRequestNotPending
+	}
+
+	var requesterRole string
+	err = tx.QueryRow(
+		ctx,
+		`SELECT role FROM users WHERE id=$1`,
+		employeeID,
+	).Scan(&requesterRole)
+
+	if err != nil {
+		return err
+	}
+
+	switch role {
+	case "MANAGER":
+		if requesterRole != "EMPLOYEE" {
+			return apperrors.ErrUnauthorizedApprover
+		}
+	case "ADMIN":
+		if requesterRole != "EMPLOYEE" && requesterRole != "MANAGER" {
+			return apperrors.ErrUnauthorizedApprover
+		}
+	}
+
+	_, err = tx.Exec(
+		ctx,
+		`UPDATE discount_requests
+		 SET status=$1,
+		     approved_by_id=$2,
+		     approval_comment=$3
+		 WHERE id=$4`,
+		newStatus, approverID, comment, requestID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }

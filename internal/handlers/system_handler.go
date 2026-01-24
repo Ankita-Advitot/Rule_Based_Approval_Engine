@@ -1,8 +1,7 @@
 package handlers
 
 import (
-	"net/http"
-
+	"rule-based-approval-engine/internal/response"
 	"rule-based-approval-engine/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +12,9 @@ func RunAutoReject(c *gin.Context) {
 	services.AutoRejectExpenseRequests()
 	services.AutoRejectDiscountRequests()
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "auto reject executed",
-	})
+	response.Success(
+		c,
+		"auto reject executed successfully",
+		nil,
+	)
 }

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"rule-based-approval-engine/internal/response"
 	"rule-based-approval-engine/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -18,17 +19,31 @@ func Register(c *gin.Context) {
 	var req RegisterRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid input",
+			err.Error(),
+		)
 		return
 	}
 
 	err := services.RegisterUser(req.Name, req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"registration failed",
+			err.Error(),
+		)
 		return
 	}
-	
-	c.JSON(http.StatusCreated, gin.H{"message": "user registered"})
+
+	response.Created(
+		c,
+		"user registered successfully",
+		nil,
+	)
 }
 func Login(c *gin.Context) {
 	var req struct {
@@ -37,42 +52,60 @@ func Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid input"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid input",
+			err.Error(),
+		)
 		return
 	}
 
 	token, role, err := services.LoginUser(req.Email, req.Password)
 	if err != nil {
-		c.JSON(401, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusUnauthorized,
+			"login failed",
+			err.Error(),
+		)
 		return
 	}
 
-	// ✅ Set JWT as HttpOnly cookie
-	c.SetCookie(
-		"access_token", // name
-		token,          // value
-		3600*24,        // maxAge (1 day)
-		"/",            // path
-		"",             // domain (localhost ok)
-		false,          // secure (true in prod HTTPS)
-		true,           // httpOnly ✅
-	)
-
-	c.JSON(200, gin.H{
-		"message": "login successful",
-		"role":    role,
-	})
-}
-func Logout(c *gin.Context) {
+	// Set JWT as HttpOnly cookie
 	c.SetCookie(
 		"access_token",
-		"",
-		-1, // expire immediately
+		token,
+		3600*24,
 		"/",
 		"",
 		false,
 		true,
 	)
 
-	c.JSON(200, gin.H{"message": "logged out"})
+	response.Success(
+		c,
+		"login successful",
+		gin.H{
+			"role": role,
+		},
+	)
+}
+
+func Logout(c *gin.Context) {
+	c.SetCookie(
+		"access_token",
+		"",
+		-1,
+		"/",
+		"",
+		false,
+		true,
+	)
+
+	response.Success(
+		c,
+		"logged out successfully",
+		nil,
+	)
 }

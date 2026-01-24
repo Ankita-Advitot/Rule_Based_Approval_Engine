@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"rule-based-approval-engine/internal/apperrors"
+	"rule-based-approval-engine/internal/response"
 	"rule-based-approval-engine/internal/services"
 	"strconv"
 
@@ -17,17 +18,23 @@ type DiscountApplyRequest struct {
 func ApplyDiscount(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthorized user",
-		})
+		response.Error(
+			c,
+			http.StatusUnauthorized,
+			"unauthorized user",
+			nil,
+		)
 		return
 	}
 
 	var req DiscountApplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request payload",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid request payload",
+			err.Error(),
+		)
 		return
 	}
 
@@ -42,90 +49,129 @@ func ApplyDiscount(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": message,
-	})
+	response.Created(
+		c,
+		message,
+		gin.H{
+			"status": "PENDING or AUTO_APPROVED",
+		},
+	)
 }
 
 func handleApplyDiscountError(c *gin.Context, err error) {
-
 	switch err {
 
 	case apperrors.ErrInvalidDiscountPercent:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "discount percentage must be greater than zero",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"discount percentage must be greater than zero",
+			nil,
+		)
 
 	case apperrors.ErrDiscountLimitExceeded:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "discount limit exceeded",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"discount limit exceeded",
+			nil,
+		)
 
 	case apperrors.ErrDiscountBalanceMissing:
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "discount balance not found",
-		})
+		response.Error(
+			c,
+			http.StatusNotFound,
+			"discount balance not found",
+			nil,
+		)
 
 	case apperrors.ErrRuleNotFound:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "discount approval rules not configured",
-		})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"discount approval rules not configured",
+			nil,
+		)
 
 	case apperrors.ErrUserNotFound:
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "user not found",
-		})
+		response.Error(
+			c,
+			http.StatusNotFound,
+			"user not found",
+			nil,
+		)
 
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to apply discount",
-		})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"failed to apply discount",
+			err.Error(),
+		)
 	}
 }
+
 func CancelDiscount(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthorized user",
-		})
+		response.Error(
+			c,
+			http.StatusUnauthorized,
+			"unauthorized user",
+			nil,
+		)
 		return
 	}
 
 	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request id",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid discount request id",
+			nil,
+		)
 		return
 	}
 
 	err = services.CancelDiscount(userID, requestID)
 	if err != nil {
-		handleCancelDiscountError(c, err) // ✅ IMPORTANT
+		handleCancelDiscountError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "discount request cancelled",
-	})
+	response.Success(
+		c,
+		"discount request cancelled successfully",
+		nil,
+	)
 }
 
 func handleCancelDiscountError(c *gin.Context, err error) {
 	switch err {
 
 	case apperrors.ErrDiscountRequestNotFound:
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "discount request not found",
-		})
+		response.Error(
+			c,
+			http.StatusNotFound,
+			"discount request not found",
+			nil,
+		)
 
 	case apperrors.ErrDiscountCannotCancel:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "this discount request cannot be cancelled",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"this discount request cannot be cancelled",
+			nil,
+		)
 
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to cancel discount request",
-		})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"failed to cancel discount request",
+			err.Error(),
+		)
 	}
 }

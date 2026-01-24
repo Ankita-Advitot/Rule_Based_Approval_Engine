@@ -17,25 +17,30 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 	var rows pgx.Rows
 	var err error
 
-	if role == "MANAGER" {
+	switch role {
+
+	case "MANAGER":
 		rows, err = database.DB.Query(
 			ctx,
 			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type
 			 FROM leave_requests lr
 			 JOIN users u ON lr.employee_id = u.id
-			 WHERE lr.status='PENDING' AND u.manager_id=$1`,
+			 WHERE lr.status='PENDING'
+			   AND u.manager_id=$1`,
 			approverID,
 		)
-	} else if role == "ADMIN" {
+
+	case "ADMIN":
 		rows, err = database.DB.Query(
 			ctx,
 			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type
 			 FROM leave_requests lr
 			 JOIN users u ON lr.employee_id = u.id
-			 WHERE lr.status='PENDING' AND u.role='MANAGER'`,
+			 WHERE lr.status='PENDING'`,
 		)
-	} else {
-		return nil, errors.New("unauthorized")
+
+	default:
+		return nil, errors.New("unauthorized role")
 	}
 
 	if err != nil {
@@ -46,13 +51,9 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 	var result []map[string]interface{}
 
 	for rows.Next() {
-		var (
-			id        int64
-			name      string
-			leaveType string
-			fromDate  time.Time
-			toDate    time.Time
-		)
+		var id int64
+		var name, leaveType string
+		var fromDate, toDate time.Time
 
 		if err := rows.Scan(&id, &name, &fromDate, &toDate, &leaveType); err != nil {
 			return nil, err
@@ -65,11 +66,6 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 			"to_date":    toDate.Format("2006-01-02"),
 			"leave_type": leaveType,
 		})
-	}
-
-	// Final safety check
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	return result, nil
@@ -113,10 +109,6 @@ func ApproveLeave(role string, approverID, requestID int64) error {
 
 	if role == "MANAGER" && requesterRole != "EMPLOYEE" {
 		return errors.New("manager can approve only employees")
-	}
-
-	if role == "ADMIN" && requesterRole != "MANAGER" {
-		return errors.New("admin can approve only managers")
 	}
 
 	days := utils.CalculateLeaveDays(from, to)
@@ -185,10 +177,6 @@ func RejectLeave(role string, approverID, requestID int64) error {
 
 	if role == "MANAGER" && requesterRole != "EMPLOYEE" {
 		return errors.New("manager can reject only employees")
-	}
-
-	if role == "ADMIN" && requesterRole != "MANAGER" {
-		return errors.New("admin can reject only managers")
 	}
 
 	_, err = tx.Exec(

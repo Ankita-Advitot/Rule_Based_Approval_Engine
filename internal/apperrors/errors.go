@@ -27,3 +27,7 @@ var (
 	ErrDiscountRequestNotFound = errors.New("discount request not found")
 	ErrDiscountCannotCancel    = errors.New("cannot cancel finalized discount request")
 )
+var (
+	ErrUnauthorizedApprover      = errors.New("unauthorized approver")
+	ErrDiscountRequestNotPending = errors.New("discount request is not pending")
+)

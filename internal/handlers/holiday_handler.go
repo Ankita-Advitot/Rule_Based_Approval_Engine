@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"net/http"
 	"strconv"
 	"time"
 
+	"rule-based-approval-engine/internal/response"
 	"rule-based-approval-engine/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -20,23 +22,42 @@ func AddHoliday(c *gin.Context) {
 
 	var req HolidayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid input"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid input",
+			err.Error(),
+		)
 		return
 	}
 
 	date, err := time.Parse("2006-01-02", req.Date)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid date format"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid date format (YYYY-MM-DD)",
+			nil,
+		)
 		return
 	}
 
 	err = services.AddHoliday(role, adminID, date, req.Description)
 	if err != nil {
-		c.JSON(403, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusForbidden,
+			"unable to add holiday",
+			err.Error(),
+		)
 		return
 	}
 
-	c.JSON(201, gin.H{"message": "holiday added"})
+	response.Created(
+		c,
+		"holiday added successfully",
+		nil,
+	)
 }
 
 func GetHolidays(c *gin.Context) {
@@ -44,11 +65,20 @@ func GetHolidays(c *gin.Context) {
 
 	holidays, err := services.GetHolidays(role)
 	if err != nil {
-		c.JSON(403, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusForbidden,
+			"failed to fetch holidays",
+			err.Error(),
+		)
 		return
 	}
 
-	c.JSON(200, holidays)
+	response.Success(
+		c,
+		"holidays fetched successfully",
+		holidays,
+	)
 }
 
 func DeleteHoliday(c *gin.Context) {
@@ -56,15 +86,29 @@ func DeleteHoliday(c *gin.Context) {
 
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid holiday id"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid holiday id",
+			nil,
+		)
 		return
 	}
 
 	err = services.DeleteHoliday(role, id)
 	if err != nil {
-		c.JSON(403, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusForbidden,
+			"unable to delete holiday",
+			err.Error(),
+		)
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "holiday removed"})
+	response.Success(
+		c,
+		"holiday removed successfully",
+		nil,
+	)
 }

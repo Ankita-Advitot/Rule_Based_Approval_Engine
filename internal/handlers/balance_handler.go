@@ -3,8 +3,10 @@ package handlers
 import (
 	"context"
 	"log"
+	"net/http"
 
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,14 +17,19 @@ func GetMyBalances(c *gin.Context) {
 	var leaveTotal, leaveRemaining int
 	var expenseTotal, expenseRemaining float64
 	var discountTotal, discountRemaining float64
-	
+
 	err := database.DB.QueryRow(
 		context.Background(),
 		`SELECT total_allocated, remaining_count FROM leaves WHERE user_id=$1`,
 		userID,
 	).Scan(&leaveTotal, &leaveRemaining)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "leave fetch failed"})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"failed to fetch leave balance",
+			err.Error(),
+		)
 		log.Printf("Error fetching leave balance: %v", err)
 		return
 	}
@@ -32,7 +39,12 @@ func GetMyBalances(c *gin.Context) {
 		userID,
 	).Scan(&expenseTotal, &expenseRemaining)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "expense fetch failed"})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"failed to fetch expense balance",
+			err.Error(),
+		)
 		return
 	}
 
@@ -42,22 +54,31 @@ func GetMyBalances(c *gin.Context) {
 		userID,
 	).Scan(&discountTotal, &discountRemaining)
 	if err != nil {
-		c.JSON(500, gin.H{"error": "discount fetch failed"})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"failed to fetch discount balance",
+			err.Error(),
+		)
 		return
 	}
 
-	c.JSON(200, gin.H{
-		"leave": gin.H{
-			"total":     leaveTotal,
-			"remaining": leaveRemaining,
+	response.Success(
+		c,
+		"balances fetched successfully",
+		gin.H{
+			"leave": gin.H{
+				"total":     leaveTotal,
+				"remaining": leaveRemaining,
+			},
+			"expense": gin.H{
+				"total":     expenseTotal,
+				"remaining": expenseRemaining,
+			},
+			"discount": gin.H{
+				"total":     discountTotal,
+				"remaining": discountRemaining,
+			},
 		},
-		"expense": gin.H{
-			"total":     expenseTotal,
-			"remaining": expenseRemaining,
-		},
-		"discount": gin.H{
-			"total":     discountTotal,
-			"remaining": discountRemaining,
-		},
-	})
+	)
 }

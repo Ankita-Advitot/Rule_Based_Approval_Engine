@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"net/http"
+	"rule-based-approval-engine/internal/apperrors"
+	"rule-based-approval-engine/internal/response"
 	"rule-based-approval-engine/internal/services"
 	"strconv"
-	"rule-based-approval-engine/internal/apperrors"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,17 +19,23 @@ type ExpenseApplyRequest struct {
 func ApplyExpense(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "unauthorized user",
-		})
+		response.Error(
+			c,
+			http.StatusUnauthorized,
+			"unauthorized user",
+			nil,
+		)
 		return
 	}
 
 	var req ExpenseApplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request payload",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid request payload",
+			err.Error(),
+		)
 		return
 	}
 
@@ -44,48 +51,72 @@ func ApplyExpense(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"message": message,
-	})
+	response.Created(
+		c,
+		message,
+		gin.H{
+			"status": "PENDING or AUTO_APPROVED",
+		},
+	)
 }
 func handleApplyExpenseError(c *gin.Context, err error) {
-
 	switch err {
 
 	case apperrors.ErrInvalidExpenseAmount:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "expense amount must be greater than zero",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"expense amount must be greater than zero",
+			nil,
+		)
 
 	case apperrors.ErrInvalidExpenseCategory:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "expense category is required",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"expense category is required",
+			nil,
+		)
 
 	case apperrors.ErrExpenseLimitExceeded:
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "expense limit exceeded",
-		})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"expense limit exceeded",
+			nil,
+		)
 
 	case apperrors.ErrExpenseBalanceMissing:
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "expense balance not found",
-		})
+		response.Error(
+			c,
+			http.StatusNotFound,
+			"expense balance not found",
+			nil,
+		)
 
 	case apperrors.ErrRuleNotFound:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "expense approval rules not configured",
-		})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"expense approval rules not configured",
+			nil,
+		)
 
 	case apperrors.ErrUserNotFound:
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "user not found",
-		})
+		response.Error(
+			c,
+			http.StatusNotFound,
+			"user not found",
+			nil,
+		)
 
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to apply expense",
-		})
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"failed to apply expense",
+			err.Error(),
+		)
 	}
 }
 
@@ -94,15 +125,29 @@ func CancelExpense(c *gin.Context) {
 
 	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(400, gin.H{"error": "invalid request id"})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"invalid expense request id",
+			nil,
+		)
 		return
 	}
 
 	err = services.CancelExpense(userID, requestID)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		response.Error(
+			c,
+			http.StatusBadRequest,
+			"unable to cancel expense request",
+			err.Error(),
+		)
 		return
 	}
 
-	c.JSON(200, gin.H{"message": "expense request cancelled"})
+	response.Success(
+		c,
+		"expense request cancelled successfully",
+		nil,
+	)
 }
