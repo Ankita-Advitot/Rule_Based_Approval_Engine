@@ -4,23 +4,36 @@ import (
 	"context"
 	"errors"
 
+	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/database"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func ApplyDiscount(
 	userID int64,
 	percent float64,
 	reason string,
-) error {
+) (string, error) {
 
 	ctx := context.Background()
+
+	// ---- Input validations ----
+	if userID <= 0 {
+		return "", errors.New("invalid user")
+	}
+
+	if percent <= 0 {
+		return "", apperrors.ErrInvalidDiscountPercent
+	}
+
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return err
+		return "", errors.New("unable to start transaction")
 	}
 	defer tx.Rollback(ctx)
 
-	// 1. Fetch remaining discount
+	// ---- Fetch remaining discount ----
 	var remaining float64
 	err = tx.QueryRow(
 		ctx,
@@ -28,15 +41,18 @@ func ApplyDiscount(
 		userID,
 	).Scan(&remaining)
 
+	if err == pgx.ErrNoRows {
+		return "", apperrors.ErrDiscountBalanceMissing
+	}
 	if err != nil {
-		return err
+		return "", errors.New("failed to fetch discount balance")
 	}
 
 	if percent > remaining {
-		return errors.New("discount limit exceeded")
+		return "", apperrors.ErrDiscountLimitExceeded
 	}
 
-	// 2. Fetch user grade
+	// ---- Fetch user grade ----
 	var gradeID int64
 	err = tx.QueryRow(
 		ctx,
@@ -44,40 +60,43 @@ func ApplyDiscount(
 		userID,
 	).Scan(&gradeID)
 
+	if err == pgx.ErrNoRows {
+		return "", apperrors.ErrUserNotFound
+	}
 	if err != nil {
-		return err
+		return "", errors.New("failed to fetch user grade")
 	}
 
-	// 3. Fetch rule
+	// ---- Fetch rule ----
 	rule, err := GetRule("DISCOUNT", gradeID)
 	if err != nil {
-		return err
+		return "", apperrors.ErrRuleNotFound
 	}
 
-	// 4. Decide
+	// ---- Decision ----
 	decision := Decide("DISCOUNT", rule.Condition, percent)
 
 	status := "PENDING"
+	message := "Discount submitted to manager for approval"
+
 	if decision == "AUTO_APPROVE" {
 		status = "AUTO_APPROVED"
+		message = "Discount approved by system"
 	}
 
-	// 5. Insert discount request
-	var requestID int64
-	err = tx.QueryRow(
+	// ---- Insert discount request ----
+	_, err = tx.Exec(
 		ctx,
 		`INSERT INTO discount_requests
 		 (employee_id, discount_percentage, reason, status, rule_id)
-		 VALUES ($1,$2,$3,$4,$5)
-		 RETURNING id`,
+		 VALUES ($1,$2,$3,$4,$5)`,
 		userID, percent, reason, status, rule.ID,
-	).Scan(&requestID)
-
+	)
 	if err != nil {
-		return err
+		return "", errors.New("failed to create discount request")
 	}
 
-	// 6. Deduct discount if auto-approved
+	// ---- Deduct discount if auto-approved ----
 	if status == "AUTO_APPROVED" {
 		_, err = tx.Exec(
 			ctx,
@@ -87,12 +106,17 @@ func ApplyDiscount(
 			percent, userID,
 		)
 		if err != nil {
-			return err
+			return "", errors.New("failed to update discount balance")
 		}
 	}
 
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return "", errors.New("failed to commit transaction")
+	}
+
+	return message, nil
 }
+
 func CancelDiscount(userID, requestID int64) error {
 	ctx := context.Background()
 	tx, err := database.DB.Begin(ctx)

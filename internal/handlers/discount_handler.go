@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/services"
 	"strconv"
 
@@ -14,21 +16,73 @@ type DiscountApplyRequest struct {
 
 func ApplyDiscount(c *gin.Context) {
 	userID := c.GetInt64("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized user",
+		})
+		return
+	}
 
 	var req DiscountApplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "invalid input"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "invalid request payload",
+		})
 		return
 	}
 
-	err := services.ApplyDiscount(userID, req.DiscountPercentage, req.Reason)
+	message, err := services.ApplyDiscount(
+		userID,
+		req.DiscountPercentage,
+		req.Reason,
+	)
+
 	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		handleApplyDiscountError(c, err)
 		return
 	}
 
-	c.JSON(201, gin.H{"message": "discount request submitted"})
+	c.JSON(http.StatusCreated, gin.H{
+		"message": message,
+	})
 }
+
+func handleApplyDiscountError(c *gin.Context, err error) {
+
+	switch err {
+
+	case apperrors.ErrInvalidDiscountPercent:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "discount percentage must be greater than zero",
+		})
+
+	case apperrors.ErrDiscountLimitExceeded:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "discount limit exceeded",
+		})
+
+	case apperrors.ErrDiscountBalanceMissing:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "discount balance not found",
+		})
+
+	case apperrors.ErrRuleNotFound:
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "discount approval rules not configured",
+		})
+
+	case apperrors.ErrUserNotFound:
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "user not found",
+		})
+
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to apply discount",
+		})
+	}
+}
+
 func CancelDiscount(c *gin.Context) {
 	userID := c.GetInt64("user_id")
 
