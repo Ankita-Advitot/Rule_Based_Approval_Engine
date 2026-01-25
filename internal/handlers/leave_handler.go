@@ -51,7 +51,7 @@ func ApplyLeave(c *gin.Context) {
 		return
 	}
 
-	message, err := services.ApplyLeave(
+	message, status, err := services.ApplyLeave(
 		userID, from, to, days, req.LeaveType, req.Reason,
 	)
 
@@ -61,8 +61,9 @@ func ApplyLeave(c *gin.Context) {
 	}
 
 	response.Success(c, message, gin.H{
-		"status": "PENDING or AUTO_APPROVED",
+		"status": status,
 	})
+
 }
 
 func handleApplyLeaveError(c *gin.Context, err error) {

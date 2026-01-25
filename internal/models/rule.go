@@ -1,10 +1,10 @@
 package models
 
 type Rule struct {
-	ID          int64
-	RequestType string
-	Condition   map[string]interface{}
-	Action      string
-	GradeID     int64
-	Active      bool
+	ID          int64                  `json:"id"`
+	RequestType string                 `json:"request_type"`
+	Condition   map[string]interface{} `json:"condition"`
+	Action      string                 `json:"action"`
+	GradeID     int64                  `json:"grade_id"`
+	Active      bool                   `json:"active"`
 }

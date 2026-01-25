@@ -30,7 +30,7 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 			`SELECT er.id, u.name, er.amount, er.category
 			 FROM expense_requests er
 			 JOIN users u ON er.employee_id = u.id
-			 WHERE er.status='PENDING' AND u.role='MANAGER'`,
+			 WHERE er.status='PENDING'`,
 		)
 	} else {
 		return nil, errors.New("unauthorized")

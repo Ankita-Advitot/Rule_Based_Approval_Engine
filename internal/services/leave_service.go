@@ -19,34 +19,34 @@ func ApplyLeave(
 	days int,
 	leaveType string,
 	reason string,
-) (string, error) {
+) (string, string, error) {
 	ctx := context.Background()
 
 	// ---- Input validations ----
 	if userID <= 0 {
-		return "", errors.New("invalid user")
+		return "", "", errors.New("invalid user")
 	}
 
 	if days <= 0 {
-		return "", apperrors.ErrInvalidLeaveDays
+		return "", "", apperrors.ErrInvalidLeaveDays
 	}
 
 	if from.After(to) {
-		return "", errors.New("from date cannot be after to date")
+		return "", "", errors.New("from date cannot be after to date")
 	}
 	// ---- Overlap validation ----
 	overlap, err := HasOverlappingLeave(ctx, userID, from, to)
 	if err != nil {
-		return "", errors.New("unable to verify existing leave requests")
+		return "", "", errors.New("unable to verify existing leave requests")
 	}
 
 	if overlap {
-		return "", apperrors.ErrLeaveOverlap
+		return "", "", apperrors.ErrLeaveOverlap
 	}
 
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return "", errors.New("unable to start transaction")
+		return "", "", errors.New("unable to start transaction")
 	}
 	defer tx.Rollback(ctx)
 
@@ -59,14 +59,14 @@ func ApplyLeave(
 	).Scan(&remaining)
 
 	if err == pgx.ErrNoRows {
-		return "", apperrors.ErrLeaveBalanceMissing
+		return "", "", apperrors.ErrLeaveBalanceMissing
 	}
 	if err != nil {
-		return "", errors.New("failed to fetch leave balance")
+		return "", "", errors.New("failed to fetch leave balance")
 	}
 
 	if days > remaining {
-		return "", apperrors.ErrLeaveBalanceExceeded
+		return "", "", apperrors.ErrLeaveBalanceExceeded
 	}
 
 	// ---- Fetch user grade ----
@@ -78,30 +78,31 @@ func ApplyLeave(
 	).Scan(&gradeID)
 
 	if err == pgx.ErrNoRows {
-		return "", apperrors.ErrUserNotFound
+		return "", "", apperrors.ErrUserNotFound
 	}
 	if err != nil {
-		return "", errors.New("failed to fetch user grade")
+		return "", "", errors.New("failed to fetch user grade")
 	}
 
 	// ---- Fetch rule ----
 	rule, err := GetRule("LEAVE", gradeID)
 	if err != nil {
-		return "", apperrors.ErrRuleNotFound
+		return "", "", apperrors.ErrRuleNotFound
 	}
 
 	// ---- Decision ----
 	decision := Decide("LEAVE", rule.Condition, float64(days))
 
-	status := "PENDING"
-	message := "Leave submitted to manager for approval"
-
+	status := ""
+	message := ""
 	if decision == "AUTO_APPROVE" {
 		status = "AUTO_APPROVED"
 		message = "Leave approved by system"
+	} else {
+		status = "PENDING"
+		message = "Leave request is pending approval"
 	}
 
-	// ---- Insert request ----
 	_, err = tx.Exec(
 		ctx,
 		`INSERT INTO leave_requests
@@ -111,7 +112,7 @@ func ApplyLeave(
 	)
 
 	if err != nil {
-		return "", errors.New("failed to create leave request")
+		return "", "", errors.New("failed to create leave request")
 	}
 
 	// ---- Deduct balance if auto-approved ----
@@ -124,15 +125,15 @@ func ApplyLeave(
 			days, userID,
 		)
 		if err != nil {
-			return "", errors.New("failed to update leave balance")
+			return "", "", errors.New("failed to update leave balance")
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", errors.New("failed to commit transaction")
+		return "", "", errors.New("failed to commit transaction")
 	}
 
-	return message, nil
+	return message, status, nil
 }
 
 func HasOverlappingLeave(
@@ -187,7 +188,7 @@ func CancelLeave(userID, requestID int64) error {
 		`SELECT status, from_date, to_date 
 		 FROM leave_requests 
 		 WHERE id=$1 AND employee_id=$2`,
-		requestID, userID, 
+		requestID, userID,
 	).Scan(&status, &from, &to)
 
 	if err != nil {

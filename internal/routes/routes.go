@@ -108,6 +108,10 @@ func Register(r *gin.Engine) {
 			admin.POST("/holidays", handlers.AddHoliday)
 			admin.GET("/holidays", handlers.GetHolidays)
 			admin.DELETE("/holidays/:id", handlers.DeleteHoliday)
+			admin.POST("/rules", handlers.CreateRule)
+			admin.GET("/rules", handlers.GetRules)
+			admin.PUT("/rules/:id", handlers.UpdateRule)
+			admin.DELETE("/rules/:id", handlers.DeleteRule)
 		}
 
 	}
