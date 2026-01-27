@@ -112,6 +112,9 @@ func Register(r *gin.Engine) {
 			admin.GET("/rules", handlers.GetRules)
 			admin.PUT("/rules/:id", handlers.UpdateRule)
 			admin.DELETE("/rules/:id", handlers.DeleteRule)
+
+			admin.GET("/reports/request-status-distribution", handlers.GetRequestStatusDistribution)
+			admin.GET("/reports/requests-by-type", handlers.GetRequestsByType)
 		}
 
 	}
