@@ -28,7 +28,8 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 	_, err = tx.Exec(
 		ctx,
 		`INSERT INTO leaves (user_id, total_allocated, remaining_count)
-		 VALUES ($1,$2,$2)`,
+		 VALUES ($1,$2,$2)
+		 ON CONFLICT (user_id) DO NOTHING`,
 		userID, leaveLimit,
 	)
 	if err != nil {
@@ -39,7 +40,8 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 	_, err = tx.Exec(
 		ctx,
 		`INSERT INTO expense (user_id, total_amount, remaining_amount)
-		 VALUES ($1,$2,$2)`,
+		 VALUES ($1,$2,$2)
+		 ON CONFLICT (user_id) DO NOTHING`,
 		userID, expenseLimit,
 	)
 	if err != nil {
@@ -50,7 +52,8 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 	_, err = tx.Exec(
 		ctx,
 		`INSERT INTO discount (user_id, total_discount, remaining_discount)
-		 VALUES ($1,$2,$2)`,
+		 VALUES ($1,$2,$2)
+		 ON CONFLICT (user_id) DO NOTHING`,
 		userID, discountLimit,
 	)
 
