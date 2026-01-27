@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"time"
 
 	"rule-based-approval-engine/internal/database"
 
@@ -18,7 +19,7 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 	if role == "MANAGER" {
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT er.id, u.name, er.amount, er.category
+			`SELECT er.id, u.name, er.amount, er.category , er.reason,er.created_at 
 			 FROM expense_requests er
 			 JOIN users u ON er.employee_id = u.id
 			 WHERE er.status='PENDING' AND u.manager_id=$1`,
@@ -27,7 +28,7 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 	} else if role == "ADMIN" {
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT er.id, u.name, er.amount, er.category
+			`SELECT er.id, u.name, er.amount, er.category , er.reason,er.created_at
 			 FROM expense_requests er
 			 JOIN users u ON er.employee_id = u.id
 			 WHERE er.status='PENDING'`,
@@ -45,17 +46,20 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 	for rows.Next() {
 		var id int64
 		var name, category string
+		var reason *string
 		var amount float64
-
-		if err := rows.Scan(&id, &name, &amount, &category); err != nil {
+		var createdAt time.Time
+		if err := rows.Scan(&id, &name, &amount, &category, &reason, &createdAt); err != nil {
 			return nil, err
 		}
 
 		result = append(result, map[string]interface{}{
-			"id":       id,
-			"employee": name,
-			"amount":   amount,
-			"category": category,
+			"id":         id,
+			"employee":   name,
+			"amount":     amount,
+			"category":   category,
+			"reason":     reason,
+			"created_at": createdAt.Format(time.RFC3339),
 		})
 	}
 

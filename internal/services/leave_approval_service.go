@@ -22,7 +22,7 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 	case "MANAGER":
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type
+			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type , lr.reason,lr.created_at 
 			 FROM leave_requests lr
 			 JOIN users u ON lr.employee_id = u.id
 			 WHERE lr.status='PENDING'
@@ -33,7 +33,7 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 	case "ADMIN":
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type
+			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type, lr.reason,lr.created_at
 			 FROM leave_requests lr
 			 JOIN users u ON lr.employee_id = u.id
 			 WHERE lr.status='PENDING'`,
@@ -52,10 +52,10 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 
 	for rows.Next() {
 		var id int64
-		var name, leaveType string
-		var fromDate, toDate time.Time
+		var name, leaveType, reason string
+		var fromDate, toDate, createdAt time.Time
 
-		if err := rows.Scan(&id, &name, &fromDate, &toDate, &leaveType); err != nil {
+		if err := rows.Scan(&id, &name, &fromDate, &toDate, &leaveType, &reason, &createdAt); err != nil {
 			return nil, err
 		}
 
@@ -65,6 +65,8 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 			"from_date":  fromDate.Format("2006-01-02"),
 			"to_date":    toDate.Format("2006-01-02"),
 			"leave_type": leaveType,
+			"reason":     reason,
+			"created_at": createdAt.Format(time.RFC3339),
 		})
 	}
 

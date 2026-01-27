@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/database"
@@ -18,7 +19,7 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 	if role == "MANAGER" {
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT dr.id, u.name, dr.discount_percentage
+			`SELECT dr.id, u.name, dr.discount_percentage ,dr.reason,dr.created_at 
 			 FROM discount_requests dr
 			 JOIN users u ON dr.employee_id = u.id
 			 WHERE dr.status='PENDING' AND u.manager_id=$1`,
@@ -27,7 +28,7 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 	} else if role == "ADMIN" {
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT dr.id, u.name, dr.discount_percentage
+			`SELECT dr.id, u.name, dr.discount_percentage ,dr.reason,dr.created_at
 			 FROM discount_requests dr
 			 JOIN users u ON dr.employee_id = u.id
 			 WHERE dr.status='PENDING'`,
@@ -46,8 +47,10 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 		var id int64
 		var name string
 		var percentage float64
+		var reason string
+		var createdAt time.Time
 
-		if err := rows.Scan(&id, &name, &percentage); err != nil {
+		if err := rows.Scan(&id, &name, &percentage, &reason, &createdAt); err != nil {
 			return nil, err
 		}
 
@@ -55,6 +58,8 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 			"id":         id,
 			"employee":   name,
 			"percentage": percentage,
+			"reason":     reason,
+			"created_at": createdAt.Format(time.RFC3339),
 		})
 	}
 
