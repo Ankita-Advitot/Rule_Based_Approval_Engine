@@ -2,10 +2,9 @@ package services
 
 import (
 	"context"
-	"time"
-
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/utils"
+	"rule-based-approval-engine/internal/pkg/utils" 
+	"time"
 )
 
 func AutoRejectLeaveRequests() error {

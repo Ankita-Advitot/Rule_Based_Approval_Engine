@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"rule-based-approval-engine/internal/config"
+	jobs "rule-based-approval-engine/internal/cron-jobs"
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/jobs"
 	"rule-based-approval-engine/internal/routes"
 
 	"github.com/gin-contrib/cors"

@@ -6,36 +6,42 @@ import (
 	"time"
 
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/helpers"
+	"rule-based-approval-engine/internal/pkg/helpers"
+	"rule-based-approval-engine/internal/pkg/utils"
 
 	"github.com/jackc/pgx/v5"
 )
 
-func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]interface{}, error) {
+func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interface{}, error) {
 	ctx := context.Background()
 
 	var rows pgx.Rows
 	var err error
 
-	if role == "MANAGER" {
+	switch role {
+
+	case "MANAGER":
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT er.id, u.name, er.amount, er.category , er.reason,er.created_at 
-			 FROM expense_requests er
-			 JOIN users u ON er.employee_id = u.id
-			 WHERE er.status='PENDING' AND u.manager_id=$1`,
+			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type , lr.reason,lr.created_at 
+			 FROM leave_requests lr
+			 JOIN users u ON lr.employee_id = u.id
+			 WHERE lr.status='PENDING'
+			   AND u.manager_id=$1`,
 			approverID,
 		)
-	} else if role == "ADMIN" {
+
+	case "ADMIN":
 		rows, err = database.DB.Query(
 			ctx,
-			`SELECT er.id, u.name, er.amount, er.category , er.reason,er.created_at
-			 FROM expense_requests er
-			 JOIN users u ON er.employee_id = u.id
-			 WHERE er.status='PENDING'`,
+			`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type, lr.reason,lr.created_at
+			 FROM leave_requests lr
+			 JOIN users u ON lr.employee_id = u.id
+			 WHERE lr.status='PENDING'`,
 		)
-	} else {
-		return nil, errors.New("unauthorized")
+
+	default:
+		return nil, errors.New("unauthorized role")
 	}
 
 	if err != nil {
@@ -44,21 +50,22 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 	defer rows.Close()
 
 	var result []map[string]interface{}
+
 	for rows.Next() {
 		var id int64
-		var name, category string
-		var reason *string
-		var amount float64
-		var createdAt time.Time
-		if err := rows.Scan(&id, &name, &amount, &category, &reason, &createdAt); err != nil {
+		var name, leaveType, reason string
+		var fromDate, toDate, createdAt time.Time
+
+		if err := rows.Scan(&id, &name, &fromDate, &toDate, &leaveType, &reason, &createdAt); err != nil {
 			return nil, err
 		}
 
 		result = append(result, map[string]interface{}{
 			"id":         id,
 			"employee":   name,
-			"amount":     amount,
-			"category":   category,
+			"from_date":  fromDate.Format("2006-01-02"),
+			"to_date":    toDate.Format("2006-01-02"),
+			"leave_type": leaveType,
 			"reason":     reason,
 			"created_at": createdAt.Format(time.RFC3339),
 		})
@@ -66,12 +73,12 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 
 	return result, nil
 }
-func ApproveExpense(
+
+func ApproveLeave(
 	role string,
 	approverID, requestID int64,
-	comment string,
+	approvalComment string,
 ) error {
-
 	ctx := context.Background()
 
 	tx, err := database.DB.Begin(ctx)
@@ -82,28 +89,26 @@ func ApproveExpense(
 
 	var employeeID int64
 	var status string
+	var from, to time.Time
 
-	// Fetch request
 	err = tx.QueryRow(
 		ctx,
-		`SELECT employee_id, status
-		 FROM expense_requests
+		`SELECT employee_id, status, from_date, to_date
+		 FROM leave_requests
 		 WHERE id=$1`,
 		requestID,
-	).Scan(&employeeID, &status)
-
+	).Scan(&employeeID, &status, &from, &to)
 	if err != nil {
 		return err
 	}
 
-	//  Validate pending
 	if err := helpers.ValidatePendingStatus(status); err != nil {
 		return err
 	}
 	if approverID == employeeID {
 		return errors.New("self approval is not allowed")
 	}
-	//  Fetch requester role
+	// Authorization
 	var requesterRole string
 	err = tx.QueryRow(
 		ctx,
@@ -111,29 +116,37 @@ func ApproveExpense(
 		employeeID,
 	).Scan(&requesterRole)
 
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
+	}
+	days := utils.CalculateLeaveDays(from, to)
+
+	// Deduct leave balance
+	_, err = tx.Exec(
+		ctx,
+		`UPDATE leaves
+		 SET remaining_count = remaining_count - $1
+		 WHERE user_id=$2`,
+		days, employeeID,
+	)
 	if err != nil {
 		return err
 	}
 
-	// 4️⃣ Validate authorization
-	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
-		return err
+	// Default comment if not provided
+	if approvalComment == "" {
+		approvalComment = "Approved"
 	}
 
-	// 5️⃣ Default comment
-	if comment == "" {
-		comment = "Approved"
-	}
-
-	// 6️⃣ Update request
+	// Update request
 	_, err = tx.Exec(
 		ctx,
-		`UPDATE expense_requests
+		`UPDATE leave_requests
 		 SET status='APPROVED',
 		     approved_by_id=$1,
 		     approval_comment=$2
 		 WHERE id=$3`,
-		approverID, comment, requestID,
+		approverID, approvalComment, requestID,
 	)
 	if err != nil {
 		return err
@@ -142,12 +155,11 @@ func ApproveExpense(
 	return tx.Commit(ctx)
 }
 
-func RejectExpense(
+func RejectLeave(
 	role string,
 	approverID, requestID int64,
-	comment string,
+	rejectionComment string,
 ) error {
-
 	ctx := context.Background()
 
 	tx, err := database.DB.Begin(ctx)
@@ -156,63 +168,50 @@ func RejectExpense(
 	}
 	defer tx.Rollback(ctx)
 
-	var employeeID int64
 	var status string
+	var employeeID int64
 
-	// 1. Fetch request
 	err = tx.QueryRow(
 		ctx,
 		`SELECT employee_id, status
-		 FROM expense_requests
+		 FROM leave_requests
 		 WHERE id=$1`,
 		requestID,
 	).Scan(&employeeID, &status)
-
 	if err != nil {
 		return err
 	}
 
-	// 2. Validate pending status
 	if err := helpers.ValidatePendingStatus(status); err != nil {
 		return err
 	}
-
-	// 3. Prevent self-approval
 	if approverID == employeeID {
 		return errors.New("self approval is not allowed")
 	}
-
-	// 4. Fetch requester role
+	// Authorization
 	var requesterRole string
 	err = tx.QueryRow(
 		ctx,
 		`SELECT role FROM users WHERE id=$1`,
 		employeeID,
 	).Scan(&requesterRole)
-
 	if err != nil {
 		return err
 	}
 
-	// 5. Validate approver role
 	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
 		return err
 	}
 
-	// 6. Default rejection comment
-	if comment == "" {
-		comment = "Rejected"
-	}
-
-	// 7. Update request
+	// Update request
 	_, err = tx.Exec(
 		ctx,
-		`UPDATE expense_requests
+		`UPDATE leave_requests
 		 SET status='REJECTED',
 		     approved_by_id=$1,
 		     approval_comment=$2
 		 WHERE id=$3`,
-		approverID, comment, requestID,
+		approverID, rejectionComment, requestID,
 	)
 	if err != nil {
 		return err

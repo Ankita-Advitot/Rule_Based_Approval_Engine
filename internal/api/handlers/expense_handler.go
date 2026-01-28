@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"rule-based-approval-engine/internal/apperrors"
-	"rule-based-approval-engine/internal/response"
-	"rule-based-approval-engine/internal/services"
+	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/apperrors"
+	"rule-based-approval-engine/internal/pkg/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/utils"
+	"rule-based-approval-engine/internal/pkg/apperrors"
+	"rule-based-approval-engine/internal/pkg/utils"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -72,7 +72,7 @@ func ApplyLeave(
 	// ---- Fetch user grade ----
 	gradeID, err := FetchUserGrade(ctx, tx, userID)
 	if err != nil {
-		return "", "",	 err
+		return "", "", err
 	}
 
 	// ---- Fetch rule ----

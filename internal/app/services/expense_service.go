@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5"
 )

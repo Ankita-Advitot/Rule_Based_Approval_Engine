@@ -2,8 +2,7 @@ package jobs
 
 import (
 	"log"
-
-	"rule-based-approval-engine/internal/services"
+	"rule-based-approval-engine/internal/app/services"
 )
 
 func RunAutoRejectJob() {

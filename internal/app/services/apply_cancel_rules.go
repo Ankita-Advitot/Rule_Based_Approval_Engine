@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"rule-based-approval-engine/internal/apperrors"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5"
 )

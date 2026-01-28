@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"rule-based-approval-engine/internal/handlers"
-	"rule-based-approval-engine/internal/middleware"
+	"rule-based-approval-engine/internal/api/handlers"
+	"rule-based-approval-engine/internal/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 )

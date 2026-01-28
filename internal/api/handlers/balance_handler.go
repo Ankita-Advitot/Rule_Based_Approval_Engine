@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/response"
+	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )

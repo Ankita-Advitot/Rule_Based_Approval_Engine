@@ -3,7 +3,7 @@ package middleware
 import (
 	"strings"
 
-	"rule-based-approval-engine/internal/utils"
+	"rule-based-approval-engine/internal/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )

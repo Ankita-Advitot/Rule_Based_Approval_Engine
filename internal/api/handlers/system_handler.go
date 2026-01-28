@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"rule-based-approval-engine/internal/response"
-	"rule-based-approval-engine/internal/services"
+	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 )
