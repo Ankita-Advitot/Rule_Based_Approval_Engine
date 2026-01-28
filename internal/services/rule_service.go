@@ -39,26 +39,41 @@ func CreateRule(role string, rule models.Rule) error {
 		return errors.New("unauthorized")
 	}
 
-	ctx := context.Background()
-
-	conditionJSON, err := json.Marshal(rule.Condition)
-	if err != nil {
-		return err
-	}
 	if rule.RequestType == "" {
 		return errors.New("request_type is required")
 	}
+
 	if rule.Action == "" {
 		return errors.New("action is required")
 	}
+
 	if rule.GradeID == 0 {
 		return errors.New("grade_id is required")
 	}
 
+	if rule.Condition == nil || len(rule.Condition) == 0 {
+		return errors.New("condition is required")
+	}
+
+	conditionJSON, err := json.Marshal(rule.Condition)
+	if err != nil {
+		return errors.New("invalid condition JSON")
+	}
+
+	ctx := context.Background()
+
 	_, err = database.DB.Exec(
 		ctx,
-		`INSERT INTO rules (request_type, condition, action, grade_id, active)
-		 VALUES ($1, $2, $3, $4, $5)`,
+		`
+		INSERT INTO rules (request_type, condition, action, grade_id, active)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (request_type, grade_id)
+		DO UPDATE SET
+			condition  = EXCLUDED.condition,
+			action     = EXCLUDED.action,
+			active     = EXCLUDED.active,
+			updated_at = NOW()
+		`,
 		rule.RequestType,
 		conditionJSON,
 		rule.Action,
