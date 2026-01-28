@@ -25,14 +25,16 @@ func Connect(cfg *config.Config) {
 
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		log.Fatal("Unable to connect to database:", err)
+		log.Printf("Warning: Unable to connect to database: %v. Swagger UI will still be available.\n", err)
+		return
 	}
 
 	err = pool.Ping(context.Background())
 	if err != nil {
-		log.Fatal("Database ping failed:", err)
+		log.Printf("Warning: Database ping failed: %v. Swagger UI will still be available.\n", err)
+		return
 	}
 
 	DB = pool
-	log.Println("✅ PostgreSQL connected")
+	log.Println(" PostgreSQL connected")
 }

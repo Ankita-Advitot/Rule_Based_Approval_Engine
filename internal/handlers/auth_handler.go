@@ -91,7 +91,6 @@ func Login(c *gin.Context) {
 		},
 	)
 }
-
 func Logout(c *gin.Context) {
 	c.SetCookie(
 		"access_token",

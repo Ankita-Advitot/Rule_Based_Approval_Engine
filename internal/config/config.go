@@ -24,18 +24,26 @@ type DBConfig struct {
 func Load() *Config {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Println("Warning: Error loading .env file, using defaults")
 	}
 
 	return &Config{
-		AppPort: os.Getenv("APP_PORT"),
+		AppPort: getEnv("APP_PORT", "8080"),
 		DB: DBConfig{
-			Host:     os.Getenv("DB_HOST"),
-			Port:     os.Getenv("DB_PORT"),
-			User:     os.Getenv("DB_USER"),
-			Password: os.Getenv("DB_PASSWORD"),
-			Name:     os.Getenv("DB_NAME"),
-			SSLMode:  os.Getenv("DB_SSLMODE"),
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getEnv("DB_PORT", "5432"),
+			User:     getEnv("DB_USER", "postgres"),
+			Password: getEnv("DB_PASSWORD", ""),
+			Name:     getEnv("DB_NAME", "approval_engine"),
+			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 	}
+}
+
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

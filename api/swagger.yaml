@@ -1,0 +1,1189 @@
+openapi: 3.0.0
+info:
+  title: Rule Based Approval Engine API
+  description: A comprehensive REST API for managing leave, expense, and discount approvals with rule-based evaluation
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@approvalengine.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development Server
+  - url: https://api.approvalengine.com
+    description: Production Server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@company.com"
+        grade_id:
+          type: integer
+          format: int64
+          example: 2
+        role:
+          type: string
+          enum: [employee, manager, admin]
+          example: "employee"
+        manager_id:
+          type: integer
+          format: int64
+          nullable: true
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "Jane Smith"
+        email:
+          type: string
+          format: email
+          example: "jane@company.com"
+        password:
+          type: string
+          minLength: 6
+          example: "SecurePassword123"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "john@company.com"
+        password:
+          type: string
+          example: "SecurePassword123"
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Login successful"
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          $ref: '#/components/schemas/User'
+
+    Balance:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        user_id:
+          type: integer
+          format: int64
+        balance_type:
+          type: string
+          enum: [leave, expense, discount]
+        total_allocated:
+          type: number
+          format: float
+        remaining_amount:
+          type: number
+          format: float
+
+    LeaveRequest:
+      type: object
+      required:
+        - from_date
+        - to_date
+        - leave_type
+        - reason
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        employee_id:
+          type: integer
+          format: int64
+          readOnly: true
+        from_date:
+          type: string
+          format: date
+          example: "2026-02-01"
+        to_date:
+          type: string
+          format: date
+          example: "2026-02-05"
+        leave_type:
+          type: string
+          enum: [annual, sick, personal, maternity]
+          example: "annual"
+        reason:
+          type: string
+          example: "Vacation time"
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+          readOnly: true
+        approved_by_id:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+        rule_id:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    ExpenseRequest:
+      type: object
+      required:
+        - amount
+        - category
+        - reason
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        employee_id:
+          type: integer
+          format: int64
+          readOnly: true
+        amount:
+          type: number
+          format: float
+          example: 150.50
+        category:
+          type: string
+          enum: [travel, meals, equipment, other]
+          example: "travel"
+        reason:
+          type: string
+          example: "Flight to client meeting"
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+          readOnly: true
+        rule_id:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+        approved_by_id:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    DiscountRequest:
+      type: object
+      required:
+        - discount_percentage
+        - reason
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        employee_id:
+          type: integer
+          format: int64
+          readOnly: true
+        discount_percentage:
+          type: number
+          format: float
+          example: 10.5
+        reason:
+          type: string
+          example: "Employee discount for purchase"
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+          readOnly: true
+        rule_id:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+        approved_by_id:
+          type: integer
+          format: int64
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    ApprovalAction:
+      type: object
+      required:
+        - remarks
+      properties:
+        remarks:
+          type: string
+          example: "Approved as per policy"
+
+    Holiday:
+      type: object
+      required:
+        - name
+        - holiday_date
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        name:
+          type: string
+          example: "Christmas"
+        holiday_date:
+          type: string
+          format: date
+          example: "2026-12-25"
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    Rule:
+      type: object
+      required:
+        - request_type
+        - condition
+        - action
+        - grade_id
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        request_type:
+          type: string
+          enum: [leave, expense, discount]
+          example: "leave"
+        condition:
+          type: object
+          additionalProperties: true
+          example:
+            amount: 5000
+            operator: ">"
+        action:
+          type: string
+          enum: [auto_approve, auto_reject, requires_review]
+          example: "auto_approve"
+        grade_id:
+          type: integer
+          format: int64
+          example: 2
+        active:
+          type: boolean
+          default: true
+
+    StatusDistribution:
+      type: object
+      properties:
+        pending:
+          type: integer
+          example: 15
+        approved:
+          type: integer
+          example: 42
+        rejected:
+          type: integer
+          example: 8
+
+    RequestsByType:
+      type: object
+      properties:
+        leave:
+          type: integer
+          example: 30
+        expense:
+          type: integer
+          example: 20
+        discount:
+          type: integer
+          example: 15
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid request"
+        message:
+          type: string
+          example: "Please provide valid input"
+        code:
+          type: integer
+          example: 400
+
+    SuccessResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Operation successful"
+        data:
+          type: object
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the status of the API
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "token=eyJhbGci...; HttpOnly; Secure; SameSite=Strict"
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Clear the JWT token
+      operationId: logoutUser
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/me:
+    get:
+      tags:
+        - User
+      summary: Get current user info
+      description: Returns the authenticated user's information
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: integer
+                    format: int64
+                  role:
+                    type: string
+
+  /api/balances:
+    get:
+      tags:
+        - Balances
+      summary: Get user's balances
+      description: Retrieve leave, expense, and discount balances for the authenticated user
+      operationId: getMyBalances
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Balances retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Balance'
+
+  /api/leaves/request:
+    post:
+      tags:
+        - Leaves
+      summary: Apply for leave
+      description: Submit a new leave request
+      operationId: applyLeave
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+      responses:
+        '201':
+          description: Leave request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/leaves/{id}/cancel:
+    post:
+      tags:
+        - Leaves
+      summary: Cancel a leave request
+      description: Cancel a previously submitted leave request
+      operationId: cancelLeave
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Leave request cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Leave request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/leaves/my:
+    get:
+      tags:
+        - Leaves
+      summary: Get my leave requests
+      description: Retrieve all leave requests for the authenticated user
+      operationId: getMyLeaves
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Leave requests retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+
+  /api/leaves/pending:
+    get:
+      tags:
+        - Leaves
+      summary: Get pending leave requests
+      description: Retrieve all pending leave requests (Manager/Admin only)
+      operationId: getPendingLeaves
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending leave requests retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+
+  /api/leaves/{id}/approve:
+    post:
+      tags:
+        - Leaves
+      summary: Approve a leave request
+      description: Approve a pending leave request (Manager/Admin only)
+      operationId: approveLeave
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalAction'
+      responses:
+        '200':
+          description: Leave request approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/leaves/{id}/reject:
+    post:
+      tags:
+        - Leaves
+      summary: Reject a leave request
+      description: Reject a pending leave request (Manager/Admin only)
+      operationId: rejectLeave
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalAction'
+      responses:
+        '200':
+          description: Leave request rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/expenses/request:
+    post:
+      tags:
+        - Expenses
+      summary: Apply for expense
+      description: Submit a new expense request
+      operationId: applyExpense
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseRequest'
+      responses:
+        '201':
+          description: Expense request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseRequest'
+
+  /api/expenses/{id}/cancel:
+    post:
+      tags:
+        - Expenses
+      summary: Cancel an expense request
+      description: Cancel a previously submitted expense request
+      operationId: cancelExpense
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Expense request cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/expenses/my:
+    get:
+      tags:
+        - Expenses
+      summary: Get my expense requests
+      description: Retrieve all expense requests for the authenticated user
+      operationId: getMyExpenses
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Expense requests retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpenseRequest'
+
+  /api/expenses/pending:
+    get:
+      tags:
+        - Expenses
+      summary: Get pending expense requests
+      description: Retrieve all pending expense requests (Manager/Admin only)
+      operationId: getPendingExpenses
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending expense requests retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpenseRequest'
+
+  /api/expenses/{id}/approve:
+    post:
+      tags:
+        - Expenses
+      summary: Approve an expense request
+      description: Approve a pending expense request (Manager/Admin only)
+      operationId: approveExpense
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalAction'
+      responses:
+        '200':
+          description: Expense request approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/expenses/{id}/reject:
+    post:
+      tags:
+        - Expenses
+      summary: Reject an expense request
+      description: Reject a pending expense request (Manager/Admin only)
+      operationId: rejectExpense
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalAction'
+      responses:
+        '200':
+          description: Expense request rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/discounts/request:
+    post:
+      tags:
+        - Discounts
+      summary: Apply for discount
+      description: Submit a new discount request
+      operationId: applyDiscount
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DiscountRequest'
+      responses:
+        '201':
+          description: Discount request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountRequest'
+
+  /api/discounts/{id}/cancel:
+    post:
+      tags:
+        - Discounts
+      summary: Cancel a discount request
+      description: Cancel a previously submitted discount request
+      operationId: cancelDiscount
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Discount request cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/discounts/my:
+    get:
+      tags:
+        - Discounts
+      summary: Get my discount requests
+      description: Retrieve all discount requests for the authenticated user
+      operationId: getMyDiscounts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Discount requests retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DiscountRequest'
+
+  /api/discounts/pending:
+    get:
+      tags:
+        - Discounts
+      summary: Get pending discount requests
+      description: Retrieve all pending discount requests (Manager/Admin only)
+      operationId: getPendingDiscounts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Pending discount requests retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DiscountRequest'
+
+  /api/discounts/{id}/approve:
+    post:
+      tags:
+        - Discounts
+      summary: Approve a discount request
+      description: Approve a pending discount request (Manager/Admin only)
+      operationId: approveDiscount
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalAction'
+      responses:
+        '200':
+          description: Discount request approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/discounts/{id}/reject:
+    post:
+      tags:
+        - Discounts
+      summary: Reject a discount request
+      description: Reject a pending discount request (Manager/Admin only)
+      operationId: rejectDiscount
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalAction'
+      responses:
+        '200':
+          description: Discount request rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/system/run-auto-reject:
+    post:
+      tags:
+        - System
+      summary: Run auto-reject job
+      description: Manually trigger the auto-reject cron job
+      operationId: runAutoReject
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Auto-reject job executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/admin/holidays:
+    post:
+      tags:
+        - Admin
+      summary: Add a holiday
+      description: Add a new holiday (Admin only)
+      operationId: addHoliday
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Holiday'
+      responses:
+        '201':
+          description: Holiday created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Holiday'
+
+    get:
+      tags:
+        - Admin
+      summary: Get all holidays
+      description: Retrieve all holidays (Admin only)
+      operationId: getHolidays
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Holidays retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Holiday'
+
+  /api/admin/holidays/{id}:
+    delete:
+      tags:
+        - Admin
+      summary: Delete a holiday
+      description: Delete a holiday by ID (Admin only)
+      operationId: deleteHoliday
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Holiday deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/admin/rules:
+    post:
+      tags:
+        - Admin
+      summary: Create a rule
+      description: Create a new approval rule (Admin only)
+      operationId: createRule
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Rule'
+      responses:
+        '201':
+          description: Rule created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rule'
+
+    get:
+      tags:
+        - Admin
+      summary: Get all rules
+      description: Retrieve all approval rules (Admin only)
+      operationId: getRules
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Rules retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rule'
+
+  /api/admin/rules/{id}:
+    put:
+      tags:
+        - Admin
+      summary: Update a rule
+      description: Update an existing approval rule (Admin only)
+      operationId: updateRule
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Rule'
+      responses:
+        '200':
+          description: Rule updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rule'
+
+    delete:
+      tags:
+        - Admin
+      summary: Delete a rule
+      description: Delete an approval rule (Admin only)
+      operationId: deleteRule
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Rule deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/admin/reports/request-status-distribution:
+    get:
+      tags:
+        - Admin
+      summary: Get request status distribution
+      description: Retrieve distribution of requests by status (Admin only)
+      operationId: getRequestStatusDistribution
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Status distribution retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusDistribution'
+
+  /api/admin/reports/requests-by-type:
+    get:
+      tags:
+        - Admin
+      summary: Get requests by type
+      description: Retrieve count of requests grouped by type (Admin only)
+      operationId: getRequestsByType
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Requests by type retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestsByType'
+
+tags:
+  - name: Health
+    description: API health and status endpoints
+  - name: Authentication
+    description: User registration and login
+  - name: User
+    description: User profile operations
+  - name: Balances
+    description: User balance management
+  - name: Leaves
+    description: Leave request management
+  - name: Expenses
+    description: Expense request management
+  - name: Discounts
+    description: Discount request management
+  - name: System
+    description: System-level operations
+  - name: Admin
+    description: Admin-only operations for managing rules, holidays, and reports
