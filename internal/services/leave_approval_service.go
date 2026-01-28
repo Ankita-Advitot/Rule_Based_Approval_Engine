@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/helpers"
 	"rule-based-approval-engine/internal/utils"
 
 	"github.com/jackc/pgx/v5"
@@ -101,10 +102,12 @@ func ApproveLeave(
 		return err
 	}
 
-	if status != "PENDING" {
-		return errors.New("request not pending")
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
 	}
-
+	if approverID == employeeID {
+		return errors.New("self approval is not allowed")
+	}
 	// Authorization
 	var requesterRole string
 	err = tx.QueryRow(
@@ -112,10 +115,10 @@ func ApproveLeave(
 		`SELECT role FROM users WHERE id=$1`,
 		employeeID,
 	).Scan(&requesterRole)
-	if role == "MANAGER" && requesterRole != "EMPLOYEE" {
-		return errors.New("manager can approve only employees")
-	}
 
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
+	}
 	days := utils.CalculateLeaveDays(from, to)
 
 	// Deduct leave balance
@@ -179,10 +182,12 @@ func RejectLeave(
 		return err
 	}
 
-	if status != "PENDING" {
-		return errors.New("request not pending")
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
 	}
-
+	if approverID == employeeID {
+		return errors.New("self approval is not allowed")
+	}
 	// Authorization
 	var requesterRole string
 	err = tx.QueryRow(
@@ -194,8 +199,8 @@ func RejectLeave(
 		return err
 	}
 
-	if role == "MANAGER" && requesterRole != "EMPLOYEE" {
-		return errors.New("manager can reject only employees")
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
 	}
 
 	// Update request

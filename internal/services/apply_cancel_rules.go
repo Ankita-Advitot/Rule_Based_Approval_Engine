@@ -38,7 +38,7 @@ func MakeDecision(
 
 func CanCancel(status string) error {
 	switch status {
-	case "APPROVED", "AUTO_APPROVED", "REJECTED", "CANCELLED":
+	case "APPROVED", "REJECTED", "CANCELLED":
 		return errors.New("cannot cancel finalized request")
 	default:
 		return nil

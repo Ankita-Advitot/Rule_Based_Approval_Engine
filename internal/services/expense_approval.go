@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/helpers"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -65,34 +66,157 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 
 	return result, nil
 }
-func ApproveExpense(role string, approverID, requestID int64, comment string) error {
+func ApproveExpense(
+	role string,
+	approverID, requestID int64,
+	comment string,
+) error {
+
 	ctx := context.Background()
 
-	_, err := database.DB.Exec(
+	tx, err := database.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var employeeID int64
+	var status string
+
+	// Fetch request
+	err = tx.QueryRow(
+		ctx,
+		`SELECT employee_id, status
+		 FROM expense_requests
+		 WHERE id=$1`,
+		requestID,
+	).Scan(&employeeID, &status)
+
+	if err != nil {
+		return err
+	}
+
+	//  Validate pending
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
+	}
+	if approverID == employeeID {
+		return errors.New("self approval is not allowed")
+	}
+	//  Fetch requester role
+	var requesterRole string
+	err = tx.QueryRow(
+		ctx,
+		`SELECT role FROM users WHERE id=$1`,
+		employeeID,
+	).Scan(&requesterRole)
+
+	if err != nil {
+		return err
+	}
+
+	// 4️⃣ Validate authorization
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
+	}
+
+	// 5️⃣ Default comment
+	if comment == "" {
+		comment = "Approved"
+	}
+
+	// 6️⃣ Update request
+	_, err = tx.Exec(
 		ctx,
 		`UPDATE expense_requests
 		 SET status='APPROVED',
 		     approved_by_id=$1,
 		     approval_comment=$2
-		 WHERE id=$3 AND status='PENDING'`,
+		 WHERE id=$3`,
 		approverID, comment, requestID,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return tx.Commit(ctx)
 }
 
-func RejectExpense(role string, approverID, requestID int64, comment string) error {
+func RejectExpense(
+	role string,
+	approverID, requestID int64,
+	comment string,
+) error {
+
 	ctx := context.Background()
 
-	_, err := database.DB.Exec(
+	tx, err := database.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var employeeID int64
+	var status string
+
+	// 1. Fetch request
+	err = tx.QueryRow(
+		ctx,
+		`SELECT employee_id, status
+		 FROM expense_requests
+		 WHERE id=$1`,
+		requestID,
+	).Scan(&employeeID, &status)
+
+	if err != nil {
+		return err
+	}
+
+	// 2. Validate pending status
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
+	}
+
+	// 3. Prevent self-approval
+	if approverID == employeeID {
+		return errors.New("self approval is not allowed")
+	}
+
+	// 4. Fetch requester role
+	var requesterRole string
+	err = tx.QueryRow(
+		ctx,
+		`SELECT role FROM users WHERE id=$1`,
+		employeeID,
+	).Scan(&requesterRole)
+
+	if err != nil {
+		return err
+	}
+
+	// 5. Validate approver role
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
+	}
+
+	// 6. Default rejection comment
+	if comment == "" {
+		comment = "Rejected"
+	}
+
+	// 7. Update request
+	_, err = tx.Exec(
 		ctx,
 		`UPDATE expense_requests
 		 SET status='REJECTED',
 		     approved_by_id=$1,
 		     approval_comment=$2
-		 WHERE id=$3 AND status='PENDING'`,
+		 WHERE id=$3`,
 		approverID, comment, requestID,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return tx.Commit(ctx)
 }

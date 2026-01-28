@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"rule-based-approval-engine/internal/apperrors"
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/helpers"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -65,27 +67,13 @@ func GetPendingDiscountRequests(role string, approverID int64) ([]map[string]int
 
 	return result, nil
 }
-
-func ApproveDiscount(role string, approverID, requestID int64, comment string) error {
-	return processDiscountApproval(role, approverID, requestID, comment, "APPROVED")
-}
-
-func RejectDiscount(role string, approverID, requestID int64, comment string) error {
-	return processDiscountApproval(role, approverID, requestID, comment, "REJECTED")
-}
-
-func processDiscountApproval(
+func ApproveDiscount(
 	role string,
 	approverID, requestID int64,
 	comment string,
-	newStatus string,
 ) error {
 
 	ctx := context.Background()
-
-	if role != "MANAGER" && role != "ADMIN" {
-		return apperrors.ErrUnauthorizedApprover
-	}
 
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
@@ -96,6 +84,7 @@ func processDiscountApproval(
 	var employeeID int64
 	var status string
 
+	//  Fetch request
 	err = tx.QueryRow(
 		ctx,
 		`SELECT employee_id, status
@@ -111,10 +100,15 @@ func processDiscountApproval(
 		return err
 	}
 
-	if status != "PENDING" {
-		return apperrors.ErrDiscountRequestNotPending
+	if approverID == employeeID {
+		return errors.New("self approval is not allowed")
+	}
+	//  Validate pending
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
 	}
 
+	//  Fetch requester role
 	var requesterRole string
 	err = tx.QueryRow(
 		ctx,
@@ -126,25 +120,103 @@ func processDiscountApproval(
 		return err
 	}
 
-	switch role {
-	case "MANAGER":
-		if requesterRole != "EMPLOYEE" {
-			return apperrors.ErrUnauthorizedApprover
-		}
-	case "ADMIN":
-		if requesterRole != "EMPLOYEE" && requesterRole != "MANAGER" {
-			return apperrors.ErrUnauthorizedApprover
-		}
+	// Validate approver role
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
 	}
 
+	// Default comment
+	if comment == "" {
+		comment = "Approved"
+	}
+
+	// Update request
 	_, err = tx.Exec(
 		ctx,
 		`UPDATE discount_requests
-		 SET status=$1,
-		     approved_by_id=$2,
-		     approval_comment=$3
-		 WHERE id=$4`,
-		newStatus, approverID, comment, requestID,
+		 SET status='APPROVED',
+		     approved_by_id=$1,
+		     approval_comment=$2
+		 WHERE id=$3`,
+		approverID, comment, requestID,
+	)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+func RejectDiscount(
+	role string,
+	approverID, requestID int64,
+	comment string,
+) error {
+
+	ctx := context.Background()
+
+	tx, err := database.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var employeeID int64
+	var status string
+
+	//  Fetch request
+	err = tx.QueryRow(
+		ctx,
+		`SELECT employee_id, status
+		 FROM discount_requests
+		 WHERE id=$1`,
+		requestID,
+	).Scan(&employeeID, &status)
+
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrDiscountRequestNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if approverID == employeeID {
+		return errors.New("self approval is not allowed")
+	}
+	//  Validate pending
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
+	}
+
+	//  Fetch requester role
+	var requesterRole string
+	err = tx.QueryRow(
+		ctx,
+		`SELECT role FROM users WHERE id=$1`,
+		employeeID,
+	).Scan(&requesterRole)
+
+	if err != nil {
+		return err
+	}
+
+	//  Validate approver role
+	if err := helpers.ValidateApproverRole(role, requesterRole); err != nil {
+		return err
+	}
+
+	//  Default comment
+	if comment == "" {
+		comment = "Rejected"
+	}
+
+	//  Update request
+	_, err = tx.Exec(
+		ctx,
+		`UPDATE discount_requests
+		 SET status='REJECTED',
+		     approved_by_id=$1,
+		     approval_comment=$2
+		 WHERE id=$3`,
+		approverID, comment, requestID,
 	)
 	if err != nil {
 		return err

@@ -45,38 +45,28 @@ func Register(c *gin.Context) {
 		nil,
 	)
 }
+
 func Login(c *gin.Context) {
 	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(
-			c,
-			http.StatusBadRequest,
-			"invalid input",
-			err.Error(),
-		)
+		response.Error(c, 400, "invalid request", err.Error())
 		return
 	}
 
 	token, role, err := services.LoginUser(req.Email, req.Password)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusUnauthorized,
-			"login failed",
-			err.Error(),
-		)
+		response.Error(c, 401, "invalid credentials", err.Error())
 		return
 	}
 
-	// Set JWT as HttpOnly cookie
 	c.SetCookie(
 		"access_token",
 		token,
-		3600*24,
+		3600*24, // 1 day
 		"/",
 		"",
 		false,
@@ -87,10 +77,12 @@ func Login(c *gin.Context) {
 		c,
 		"login successful",
 		gin.H{
-			"role": role,
+			"token": token,
+			"role":  role,
 		},
 	)
 }
+
 func Logout(c *gin.Context) {
 	c.SetCookie(
 		"access_token",
