@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"rule-based-approval-engine/internal/app/services/helpers"
@@ -21,11 +20,11 @@ func ApplyLeave(
 	leaveType string,
 	reason string,
 ) (string, string, error) {
-	ctx := context.Background() 
+	ctx := context.Background()
 
 	// ---- Input validations ----
 	if userID <= 0 {
-		return "", "", errors.New("invalid user")
+		return "", "", apperrors.ErrInvalidUser
 	}
 
 	if days <= 0 {
@@ -33,21 +32,21 @@ func ApplyLeave(
 	}
 
 	if from.After(to) {
-		return "", "", errors.New("from date cannot be after to date")
+		return "", "", apperrors.ErrInvalidDateRange
 	}
 	// ---- Overlap validation ----
 	overlap, err := HasOverlappingLeave(ctx, userID, from, to)
 	if err != nil {
-		return "", "", errors.New("unable to verify existing leave requests")
+		return "", "", apperrors.ErrLeaveVerificationFailed
 	}
 
 	if overlap {
 		return "", "", apperrors.ErrLeaveOverlap
 	}
 
-	tx, err := database.DB.Begin(ctx) 
+	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return "", "", errors.New("unable to start transaction")
+		return "", "", apperrors.ErrTransactionBegin
 	}
 	defer tx.Rollback(ctx)
 
@@ -63,7 +62,7 @@ func ApplyLeave(
 		return "", "", apperrors.ErrLeaveBalanceMissing
 	}
 	if err != nil {
-		return "", "", errors.New("failed to fetch leave balance")
+		return "", "", apperrors.ErrBalanceFetchFailed
 	}
 
 	if days > remaining {
@@ -115,7 +114,7 @@ func ApplyLeave(
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", "", errors.New("failed to commit transaction")
+		return "", "", apperrors.ErrTransactionCommit
 	}
 
 	return message, status, nil

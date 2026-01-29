@@ -27,12 +27,14 @@ func AutoRejectLeaveRequests() error {
 		var id int64
 		var createdAt time.Time
 
-		rows.Scan(&id, &createdAt)
+		if err := rows.Scan(&id, &createdAt); err != nil {
+			return err
+		}
 
 		workingDays := utils.CountWorkingDays(createdAt, now)
 
 		if workingDays >= 7 {
-			_, _ = database.DB.Exec(
+			_, err = database.DB.Exec(
 				ctx,
 				`UPDATE leave_requests
 				 SET status='AUTO_REJECTED',
@@ -40,7 +42,14 @@ func AutoRejectLeaveRequests() error {
 				 WHERE id=$1`,
 				id,
 			)
+			if err != nil {
+				return err
+			}
 		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
 	return nil
@@ -65,12 +74,14 @@ func AutoRejectExpenseRequests() error {
 		var id int64
 		var createdAt time.Time
 
-		rows.Scan(&id, &createdAt)
+		if err := rows.Scan(&id, &createdAt); err != nil {
+			return err
+		}
 
 		workingDays := utils.CountWorkingDays(createdAt, now)
 
 		if workingDays >= 7 {
-			_, _ = database.DB.Exec(
+			_, err = database.DB.Exec(
 				ctx,
 				`UPDATE expense_requests
 				 SET status='AUTO_REJECTED',
@@ -78,7 +89,14 @@ func AutoRejectExpenseRequests() error {
 				 WHERE id=$1`,
 				id,
 			)
+			if err != nil {
+				return err
+			}
 		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
 	return nil
@@ -103,12 +121,14 @@ func AutoRejectDiscountRequests() error {
 		var id int64
 		var createdAt time.Time
 
-		rows.Scan(&id, &createdAt)
+		if err := rows.Scan(&id, &createdAt); err != nil {
+			return err
+		}
 
 		workingDays := utils.CountWorkingDays(createdAt, now)
 
 		if workingDays >= 7 {
-			_, _ = database.DB.Exec(
+			_, err = database.DB.Exec(
 				ctx,
 				`UPDATE discount_requests
 				 SET status='AUTO_REJECTED',
@@ -116,7 +136,14 @@ func AutoRejectDiscountRequests() error {
 				 WHERE id=$1`,
 				id,
 			)
+			if err != nil {
+				return err
+			}
 		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
 	return nil

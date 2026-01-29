@@ -103,9 +103,22 @@ func CancelLeave(c *gin.Context) {
 
 	err = services.CancelLeave(userID, requestID)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "unable to cancel leave", err.Error())
+		handleCancelLeaveError(c, err)
 		return
 	}
 
 	response.Success(c, "leave request cancelled successfully", nil)
+}
+
+func handleCancelLeaveError(c *gin.Context, err error) {
+	status := http.StatusInternalServerError
+
+	switch err {
+	case apperrors.ErrLeaveRequestNotFound:
+		status = http.StatusNotFound
+	case apperrors.ErrRequestCannotCancel:
+		status = http.StatusBadRequest
+	}
+
+	response.Error(c, status, "unable to cancel leave", err.Error())
 }

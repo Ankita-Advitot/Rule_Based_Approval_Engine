@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/utils"
 
 	"github.com/jackc/pgx/v5"
@@ -41,7 +41,7 @@ func GetPendingLeaveRequests(role string, approverID int64) ([]map[string]interf
 		)
 
 	default:
-		return nil, errors.New("unauthorized role")
+		return nil, apperrors.ErrUnauthorizedRole
 	}
 
 	if err != nil {
@@ -98,11 +98,15 @@ func ApproveLeave(
 		 WHERE id=$1`,
 		requestID,
 	).Scan(&employeeID, &status, &from, &to)
+
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrLeaveRequestNotFound
+	}
 	if err != nil {
 		return err
 	}
 	if approverID == employeeID {
-		return errors.New("self approval is not allowed")
+		return apperrors.ErrSelfApprovalNotAllowed
 	}
 	if err := helpers.ValidatePendingStatus(status); err != nil {
 		return err
@@ -178,6 +182,10 @@ func RejectLeave(
 		 WHERE id=$1`,
 		requestID,
 	).Scan(&employeeID, &status)
+
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrLeaveRequestNotFound
+	}
 	if err != nil {
 		return err
 	}
@@ -186,7 +194,7 @@ func RejectLeave(
 		return err
 	}
 	if approverID == employeeID {
-		return errors.New("self approval is not allowed")
+		return apperrors.ErrSelfApprovalNotAllowed
 	}
 	// Authorization
 	var requesterRole string

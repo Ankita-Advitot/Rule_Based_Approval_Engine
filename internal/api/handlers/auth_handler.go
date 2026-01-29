@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -30,9 +31,13 @@ func Register(c *gin.Context) {
 
 	err := services.RegisterUser(req.Name, req.Email, req.Password)
 	if err != nil {
+		status := http.StatusBadRequest
+		if err == apperrors.ErrEmailAlreadyRegistered {
+			status = http.StatusConflict
+		}
 		response.Error(
 			c,
-			http.StatusBadRequest,
+			status,
 			"registration failed",
 			err.Error(),
 		)
@@ -59,7 +64,11 @@ func Login(c *gin.Context) {
 
 	token, role, err := services.LoginUser(req.Email, req.Password)
 	if err != nil {
-		response.Error(c, 401, "invalid credentials", err.Error())
+		status := http.StatusUnauthorized
+		if err == apperrors.ErrEmailRequired || err == apperrors.ErrPasswordRequired {
+			status = http.StatusBadRequest
+		}
+		response.Error(c, status, "invalid credentials", err.Error())
 		return
 	}
 

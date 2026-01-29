@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -21,7 +23,10 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 	).Scan(&leaveLimit, &expenseLimit, &discountLimit)
 
 	if err != nil {
-		return err
+		if err == pgx.ErrNoRows {
+			return apperrors.ErrQueryFailed // Or a more specific error if grade not found
+		}
+		return helpers.MapPgError(err)
 	}
 
 	// Leave wallet
@@ -33,7 +38,7 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 		userID, leaveLimit,
 	)
 	if err != nil {
-		return err
+		return helpers.MapPgError(err)
 	}
 
 	// Expense wallet
@@ -45,7 +50,7 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 		userID, expenseLimit,
 	)
 	if err != nil {
-		return err
+		return helpers.MapPgError(err)
 	}
 
 	// Discount wallet
@@ -56,6 +61,9 @@ func InitializeBalances(tx pgx.Tx, userID int64, gradeID int64) error {
 		 ON CONFLICT (user_id) DO NOTHING`,
 		userID, discountLimit,
 	)
+	if err != nil {
+		return helpers.MapPgError(err)
+	}
 
-	return err
+	return nil
 }

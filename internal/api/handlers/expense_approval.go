@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -53,7 +54,7 @@ func ApproveExpense(c *gin.Context) {
 
 	err = services.ApproveExpense(role, approverID, requestID, comment)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "unable to approve expense request", err.Error())
+		handleExpenseApprovalError(c, err, "unable to approve expense request")
 		return
 	}
 
@@ -85,9 +86,24 @@ func RejectExpense(c *gin.Context) {
 
 	err = services.RejectExpense(role, approverID, requestID, comment)
 	if err != nil {
-		response.Error(c, http.StatusBadRequest, "unable to reject expense request", err.Error())
+		handleExpenseApprovalError(c, err, "unable to reject expense request")
 		return
 	}
 
 	response.Success(c, "expense rejected successfully", nil)
+}
+
+func handleExpenseApprovalError(c *gin.Context, err error, message string) {
+	status := http.StatusInternalServerError
+
+	switch err {
+	case apperrors.ErrUnauthorizedApprover, apperrors.ErrUnauthorizedRole, apperrors.ErrSelfApprovalNotAllowed:
+		status = http.StatusForbidden
+	case apperrors.ErrExpenseRequestNotFound, apperrors.ErrUserNotFound:
+		status = http.StatusNotFound
+	case apperrors.ErrRequestNotPending:
+		status = http.StatusBadRequest
+	}
+
+	response.Error(c, status, message, err.Error())
 }

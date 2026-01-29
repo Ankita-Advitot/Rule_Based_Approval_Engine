@@ -1,13 +1,14 @@
 package utils
 
 import (
-	"errors"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte("super-secret-key") // move to env later
+var jwtSecret = []byte("super-secret-key")
+
 type JWTClaims struct {
 	UserID int64  `json:"user_id"`
 	Role   string `json:"role"`
@@ -37,7 +38,7 @@ func ValidateToken(tokenString string) (*JWTClaims, error) {
 		func(token *jwt.Token) (interface{}, error) {
 			// Ensure token method is HMAC
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
+				return nil, apperrors.ErrUnexpectedSigningMethod
 			}
 			return jwtSecret, nil
 		},
@@ -49,7 +50,7 @@ func ValidateToken(tokenString string) (*JWTClaims, error) {
 
 	claims, ok := token.Claims.(*JWTClaims)
 	if !ok || !token.Valid {
-		return nil, errors.New("invalid token")
+		return nil, apperrors.ErrInvalidToken
 	}
 
 	return claims, nil

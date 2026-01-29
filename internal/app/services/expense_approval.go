@@ -2,11 +2,11 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -35,7 +35,7 @@ func GetPendingExpenseRequests(role string, approverID int64) ([]map[string]inte
 			 WHERE er.status='PENDING'`,
 		)
 	} else {
-		return nil, errors.New("unauthorized")
+		return nil, apperrors.ErrUnauthorized
 	}
 
 	if err != nil {
@@ -92,17 +92,22 @@ func ApproveExpense(
 		requestID,
 	).Scan(&employeeID, &status)
 
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrExpenseRequestNotFound
+	}
 	if err != nil {
 		return err
+	}
+
+	if approverID == employeeID {
+		return apperrors.ErrSelfApprovalNotAllowed
 	}
 
 	//  Validate pending
 	if err := helpers.ValidatePendingStatus(status); err != nil {
 		return err
 	}
-	if approverID == employeeID {
-		return errors.New("self approval is not allowed")
-	}
+
 	//  Fetch requester role
 	var requesterRole string
 	err = tx.QueryRow(
@@ -158,7 +163,9 @@ func RejectExpense(
 
 	var employeeID int64
 	var status string
-
+	if approverID == employeeID {
+		return apperrors.ErrSelfApprovalNotAllowed
+	}
 	// 1. Fetch request
 	err = tx.QueryRow(
 		ctx,
@@ -168,6 +175,9 @@ func RejectExpense(
 		requestID,
 	).Scan(&employeeID, &status)
 
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrExpenseRequestNotFound
+	}
 	if err != nil {
 		return err
 	}
@@ -178,9 +188,6 @@ func RejectExpense(
 	}
 
 	// 3. Prevent self-approval
-	if approverID == employeeID {
-		return errors.New("self approval is not allowed")
-	}
 
 	// 4. Fetch requester role
 	var requesterRole string

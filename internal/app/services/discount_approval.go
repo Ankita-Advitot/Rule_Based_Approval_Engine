@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"rule-based-approval-engine/internal/app/services/helpers"
@@ -101,7 +100,7 @@ func ApproveDiscount(
 	}
 
 	if approverID == employeeID {
-		return errors.New("self approval is not allowed")
+		return apperrors.ErrSelfApprovalNotAllowed
 	}
 	//  Validate pending
 	if err := helpers.ValidatePendingStatus(status); err != nil {
@@ -179,7 +178,7 @@ func RejectDiscount(
 		return err
 	}
 	if approverID == employeeID {
-		return errors.New("self approval is not allowed")
+		return apperrors.ErrSelfApprovalNotAllowed
 	}
 	//  Validate pending
 	if err := helpers.ValidatePendingStatus(status); err != nil {

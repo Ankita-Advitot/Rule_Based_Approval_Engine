@@ -1,12 +1,12 @@
 package helpers
 
 import (
-	"errors"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 )
 
 func ValidatePendingStatus(status string) error {
 	if status != "PENDING" {
-		return errors.New("request not pending")
+		return apperrors.ErrRequestNotPending
 	}
 	return nil
 }
@@ -15,7 +15,7 @@ func ValidateApproverRole(approverRole, requesterRole string) error {
 
 	// Employee can never approve
 	if approverRole == "EMPLOYEE" {
-		return errors.New("employees are not allowed to approve requests")
+		return apperrors.ErrEmployeeCannotApprove
 	}
 
 	// Admin can approve anyone
@@ -33,14 +33,14 @@ func ValidateApproverRole(approverRole, requesterRole string) error {
 
 		// Manager approving manager
 		if requesterRole == "MANAGER" {
-			return errors.New("managers can only be approved by admin")
+			return apperrors.ErrManagerNeedsAdmin
 		}
 
 		// Admin never requests, but safety net
 		if requesterRole == "ADMIN" {
-			return errors.New("admin requests are not allowed")
+			return apperrors.ErrAdminRequestNotAllowed
 		}
 	}
 
-	return errors.New("unauthorized approval attempt")
+	return apperrors.ErrUnauthorizedApproval
 }

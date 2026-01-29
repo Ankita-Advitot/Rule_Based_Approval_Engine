@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"errors"
 	"log"
 	"rule-based-approval-engine/internal/database"
 	"rule-based-approval-engine/internal/models"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/utils"
 	"strings"
 )
@@ -24,11 +24,11 @@ func RegisterUser(name, email, password string) error {
 	log.Println("RegisterUser started:", email)
 	if strings.TrimSpace(email) == "" {
 		log.Println("Validation failed: email empty")
-		return errors.New("email is required")
+		return apperrors.ErrEmailRequired
 	}
 	if strings.TrimSpace(password) == "" {
 		log.Println("Validation failed: password empty")
-		return errors.New("password is required")
+		return apperrors.ErrPasswordRequired
 	}
 
 	tx, err := database.DB.Begin(ctx)
@@ -52,14 +52,14 @@ func RegisterUser(name, email, password string) error {
 	}
 	if count > 0 {
 		log.Println("Email already registered:", email)
-		return errors.New("email already registered")
+		return apperrors.ErrEmailAlreadyRegistered
 	}
 
 	// Hash password
 	hashedPassword, err := utils.HashPassword(password)
 	if err != nil {
 		log.Println("Password hashing failed:", err)
-		return err
+		return apperrors.ErrPasswordHashFailed
 	}
 
 	// Decide role, grade, manager_id
@@ -133,11 +133,11 @@ func LoginUser(email, password string) (string, string, error) {
 	).Scan(&user.ID, &user.PasswordHash, &user.Role)
 
 	if err != nil {
-		return "", "", errors.New("invalid credentials")
+		return "", "", apperrors.ErrInvalidCredentials
 	}
 
 	if err := utils.CheckPassword(password, user.PasswordHash); err != nil {
-		return "", "", errors.New("invalid credentials")
+		return "", "", apperrors.ErrInvalidCredentials
 	}
 
 	token, err := utils.GenerateToken(user.ID, user.Role)

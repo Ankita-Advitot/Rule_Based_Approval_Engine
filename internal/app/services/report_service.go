@@ -63,6 +63,10 @@ func GetRequestStatusDistribution() (map[string]int, error) {
 		}
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return result, nil
 }
 
@@ -111,8 +115,10 @@ func GetRequestsByTypeReport() ([]RequestTypeReport, error) {
 		if r.TotalRequests > 0 {
 			r.AutoApprovedPercent = (float64(r.AutoApproved) / float64(r.TotalRequests)) * 100
 		}
+	}
 
-		reports = append(reports, r)
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return reports, nil

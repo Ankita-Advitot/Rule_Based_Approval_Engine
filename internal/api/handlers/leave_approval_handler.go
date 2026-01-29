@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -67,12 +68,7 @@ func ApproveLeave(c *gin.Context) {
 		approvalComment,
 	)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusBadRequest,
-			"unable to approve leave request",
-			err.Error(),
-		)
+		handleApprovalError(c, err, "unable to approve leave request")
 		return
 	}
 
@@ -128,12 +124,7 @@ func RejectLeave(c *gin.Context) {
 		rejectionComment,
 	)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusBadRequest,
-			"unable to reject leave request",
-			err.Error(),
-		)
+		handleApprovalError(c, err, "unable to reject leave request")
 		return
 	}
 
@@ -142,4 +133,19 @@ func RejectLeave(c *gin.Context) {
 		"leave rejected successfully",
 		nil,
 	)
+}
+
+func handleApprovalError(c *gin.Context, err error, message string) {
+	status := http.StatusInternalServerError
+
+	switch err {
+	case apperrors.ErrUnauthorizedApprover, apperrors.ErrUnauthorizedRole, apperrors.ErrSelfApprovalNotAllowed:
+		status = http.StatusForbidden
+	case apperrors.ErrLeaveRequestNotFound, apperrors.ErrUserNotFound:
+		status = http.StatusNotFound
+	case apperrors.ErrRequestNotPending:
+		status = http.StatusBadRequest
+	}
+
+	response.Error(c, status, message, err.Error())
 }

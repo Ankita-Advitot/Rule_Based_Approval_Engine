@@ -3,6 +3,9 @@ package services
 import "fmt"
 
 func EvaluateLeaveRule(rule map[string]interface{}, days int) bool {
+	if rule == nil {
+		return false
+	}
 	maxDays, ok := rule["max_days"].(float64)
 	fmt.Println("EvaluateLeaveRule ", ok)
 	if !ok {
@@ -12,6 +15,9 @@ func EvaluateLeaveRule(rule map[string]interface{}, days int) bool {
 }
 
 func EvaluateExpenseRule(rule map[string]interface{}, amount float64) bool {
+	if rule == nil {
+		return false
+	}
 	maxAmount, ok := rule["max_amount"].(float64)
 	if !ok {
 		return false
@@ -20,6 +26,9 @@ func EvaluateExpenseRule(rule map[string]interface{}, amount float64) bool {
 }
 
 func EvaluateDiscountRule(rule map[string]interface{}, percent float64) bool {
+	if rule == nil {
+		return false
+	}
 	maxPercent, ok := rule["max_percent"].(float64)
 	if !ok {
 		return false

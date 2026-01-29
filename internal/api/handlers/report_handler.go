@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -12,23 +13,13 @@ import (
 func GetRequestStatusDistribution(c *gin.Context) {
 	role := c.GetString("role")
 	if role != "ADMIN" {
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"Unauthorized access",
-			"admin role required",
-		)
+		handleReportError(c, apperrors.ErrAdminOnly, "Unauthorized access")
 		return
 	}
 
 	data, err := services.GetRequestStatusDistribution()
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusInternalServerError,
-			"Failed to fetch request status distribution",
-			err.Error(),
-		)
+		handleReportError(c, err, "Failed to fetch request status distribution")
 		return
 	}
 
@@ -42,23 +33,13 @@ func GetRequestStatusDistribution(c *gin.Context) {
 func GetRequestsByType(c *gin.Context) {
 	role := c.GetString("role")
 	if role != "ADMIN" {
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"Unauthorized access",
-			"admin role required",
-		)
+		handleReportError(c, apperrors.ErrAdminOnly, "Unauthorized access")
 		return
 	}
 
 	data, err := services.GetRequestsByTypeReport()
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusInternalServerError,
-			"Failed to fetch requests by type report",
-			err.Error(),
-		)
+		handleReportError(c, err, "Failed to fetch requests by type report")
 		return
 	}
 
@@ -67,4 +48,14 @@ func GetRequestsByType(c *gin.Context) {
 		"Requests by type report fetched successfully",
 		data,
 	)
+}
+
+func handleReportError(c *gin.Context, err error, message string) {
+	status := http.StatusInternalServerError
+
+	if err == apperrors.ErrAdminOnly || err == apperrors.ErrUnauthorized {
+		status = http.StatusForbidden
+	}
+
+	response.Error(c, status, message, err.Error())
 }

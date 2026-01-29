@@ -17,12 +17,7 @@ func GetPendingDiscounts(c *gin.Context) {
 
 	discounts, err := services.GetPendingDiscountRequests(role, userID)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"failed to fetch pending discount requests",
-			err.Error(),
-		)
+		handleApproveRejectDiscountError(c, err, "failed to fetch pending discount requests")
 		return
 	}
 
@@ -53,7 +48,7 @@ func ApproveDiscount(c *gin.Context) {
 
 	err = services.ApproveDiscount(role, approverID, requestID, comment)
 	if err != nil {
-		handleApproveRejectDiscountError(c, err)
+		handleApproveRejectDiscountError(c, err, "unable to approve discount request")
 		return
 	}
 
@@ -88,7 +83,7 @@ func RejectDiscount(c *gin.Context) {
 
 	err = services.RejectDiscount(role, approverID, requestID, comment)
 	if err != nil {
-		handleApproveRejectDiscountError(c, err)
+		handleApproveRejectDiscountError(c, err, "unable to reject discount request")
 		return
 	}
 
@@ -99,39 +94,17 @@ func RejectDiscount(c *gin.Context) {
 	)
 }
 
-func handleApproveRejectDiscountError(c *gin.Context, err error) {
+func handleApproveRejectDiscountError(c *gin.Context, err error, message string) {
+	status := http.StatusInternalServerError
+
 	switch err {
-
-	case apperrors.ErrUnauthorizedApprover:
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"you are not authorized to perform this action",
-			nil,
-		)
-
+	case apperrors.ErrUnauthorizedApprover, apperrors.ErrUnauthorizedRole, apperrors.ErrSelfApprovalNotAllowed:
+		status = http.StatusForbidden
 	case apperrors.ErrDiscountRequestNotFound:
-		response.Error(
-			c,
-			http.StatusNotFound,
-			"discount request not found",
-			nil,
-		)
-
+		status = http.StatusNotFound
 	case apperrors.ErrDiscountRequestNotPending:
-		response.Error(
-			c,
-			http.StatusBadRequest,
-			"discount request is not pending",
-			nil,
-		)
-
-	default:
-		response.Error(
-			c,
-			http.StatusInternalServerError,
-			"failed to process discount request",
-			err.Error(),
-		)
+		status = http.StatusBadRequest
 	}
+
+	response.Error(c, status, message, err.Error())
 }

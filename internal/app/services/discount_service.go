@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 
 	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
@@ -21,7 +20,7 @@ func ApplyDiscount(
 
 	// ---- Input validations ----
 	if userID <= 0 {
-		return "", "", errors.New("invalid user")
+		return "", "", apperrors.ErrInvalidUser
 	}
 
 	if percent <= 0 {
@@ -30,7 +29,7 @@ func ApplyDiscount(
 
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return "", "", errors.New("unable to start transaction")
+		return "", "", apperrors.ErrTransactionBegin
 	}
 	defer tx.Rollback(ctx)
 
@@ -46,7 +45,7 @@ func ApplyDiscount(
 		return "", "", apperrors.ErrDiscountBalanceMissing
 	}
 	if err != nil {
-		return "", "", errors.New("failed to fetch discount balance")
+		return "", "", apperrors.ErrBalanceFetchFailed
 	}
 
 	if percent > remaining {
@@ -79,7 +78,7 @@ func ApplyDiscount(
 		userID, percent, reason, status, rule.ID,
 	)
 	if err != nil {
-		return "", "", errors.New("failed to create discount request")
+		return "", "", apperrors.ErrInsertFailed
 	}
 
 	// ---- Deduct discount if auto-approved ----
@@ -92,12 +91,12 @@ func ApplyDiscount(
 			percent, userID,
 		)
 		if err != nil {
-			return "", "", errors.New("failed to update discount balance")
+			return "", "", apperrors.ErrBalanceUpdateFailed
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", "", errors.New("failed to commit transaction")
+		return "", "", apperrors.ErrTransactionCommit
 	}
 
 	return message, status, nil
@@ -106,7 +105,7 @@ func CancelDiscount(userID, requestID int64) error {
 	ctx := context.Background()
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return errors.New("unable to start transaction")
+		return apperrors.ErrTransactionBegin
 	}
 	defer tx.Rollback(ctx)
 
@@ -126,7 +125,7 @@ func CancelDiscount(userID, requestID int64) error {
 		return apperrors.ErrDiscountRequestNotFound
 	}
 	if err != nil {
-		return errors.New("failed to fetch discount request")
+		return apperrors.ErrQueryFailed
 	}
 
 	// reuse CanCancel from apply_cancel_rules.go
@@ -142,7 +141,7 @@ func CancelDiscount(userID, requestID int64) error {
 		requestID,
 	)
 	if err != nil {
-		return errors.New("failed to cancel discount request")
+		return apperrors.ErrUpdateFailed
 	}
 
 	//  Restore discount if auto-approved
@@ -155,12 +154,12 @@ func CancelDiscount(userID, requestID int64) error {
 			percent, userID,
 		)
 		if err != nil {
-			return errors.New("failed to restore discount balance")
+			return apperrors.ErrBalanceUpdateFailed
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return errors.New("failed to commit transaction")
+		return apperrors.ErrTransactionCommit
 	}
 
 	return nil

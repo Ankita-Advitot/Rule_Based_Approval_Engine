@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/http"
 	"rule-based-approval-engine/internal/app/services"
 	"rule-based-approval-engine/internal/pkg/response"
 
@@ -8,9 +9,19 @@ import (
 )
 
 func RunAutoReject(c *gin.Context) {
-	services.AutoRejectLeaveRequests()
-	services.AutoRejectExpenseRequests()
-	services.AutoRejectDiscountRequests()
+	err1 := services.AutoRejectLeaveRequests()
+	err2 := services.AutoRejectExpenseRequests()
+	err3 := services.AutoRejectDiscountRequests()
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		response.Error(
+			c,
+			http.StatusInternalServerError,
+			"auto reject failed",
+			"one or more rejection processes encountered an error",
+		)
+		return
+	}
 
 	response.Success(
 		c,

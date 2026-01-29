@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -44,12 +45,7 @@ func AddHoliday(c *gin.Context) {
 
 	err = services.AddHoliday(role, adminID, date, req.Description)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"unable to add holiday",
-			err.Error(),
-		)
+		handleHolidayError(c, err, "unable to add holiday")
 		return
 	}
 
@@ -65,12 +61,7 @@ func GetHolidays(c *gin.Context) {
 
 	holidays, err := services.GetHolidays(role)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"failed to fetch holidays",
-			err.Error(),
-		)
+		handleHolidayError(c, err, "failed to fetch holidays")
 		return
 	}
 
@@ -97,12 +88,7 @@ func DeleteHoliday(c *gin.Context) {
 
 	err = services.DeleteHoliday(role, id)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusForbidden,
-			"unable to delete holiday",
-			err.Error(),
-		)
+		handleHolidayError(c, err, "unable to delete holiday")
 		return
 	}
 
@@ -111,4 +97,14 @@ func DeleteHoliday(c *gin.Context) {
 		"holiday removed successfully",
 		nil,
 	)
+}
+
+func handleHolidayError(c *gin.Context, err error, message string) {
+	status := http.StatusInternalServerError
+
+	if err == apperrors.ErrAdminOnly {
+		status = http.StatusForbidden
+	}
+
+	response.Error(c, status, message, err.Error())
 }

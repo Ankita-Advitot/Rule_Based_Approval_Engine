@@ -2,15 +2,15 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"rule-based-approval-engine/internal/database"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 )
 
 func ensureAdmin(role string) error {
 	if role != "ADMIN" {
-		return errors.New("only admin can manage holidays")
+		return apperrors.ErrAdminOnly
 	}
 	return nil
 }
@@ -50,7 +50,9 @@ func GetHolidays(role string) ([]map[string]interface{}, error) {
 		var d time.Time
 		var desc string
 
-		rows.Scan(&id, &d, &desc)
+		if err := rows.Scan(&id, &d, &desc); err != nil {
+			return nil, err
+		}
 
 		result = append(result, map[string]interface{}{
 			"id":          id,

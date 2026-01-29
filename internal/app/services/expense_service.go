@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"rule-based-approval-engine/internal/app/services/helpers"
@@ -23,7 +22,7 @@ func ApplyExpense(
 
 	// ---- Input validations ----
 	if userID <= 0 {
-		return "", "", errors.New("invalid user")
+		return "", "", apperrors.ErrInvalidUser
 	}
 
 	if amount <= 0 {
@@ -36,7 +35,7 @@ func ApplyExpense(
 
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return "", "", errors.New("unable to start transaction")
+		return "", "", apperrors.ErrTransactionBegin
 	}
 	defer tx.Rollback(ctx)
 
@@ -52,7 +51,7 @@ func ApplyExpense(
 		return "", "", apperrors.ErrExpenseBalanceMissing
 	}
 	if err != nil {
-		return "", "", errors.New("failed to fetch expense balance")
+		return "", "", apperrors.ErrBalanceFetchFailed
 	}
 
 	if amount > remaining {
@@ -85,7 +84,7 @@ func ApplyExpense(
 		userID, amount, category, reason, status, rule.ID,
 	)
 	if err != nil {
-		return "", "", errors.New("failed to create expense request")
+		return "", "", apperrors.ErrInsertFailed
 	}
 
 	// ---- Deduct balance if auto-approved ----
@@ -104,7 +103,7 @@ func ApplyExpense(
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", "", errors.New("failed to commit transaction")
+		return "", "", apperrors.ErrTransactionCommit
 	}
 
 	return message, status, nil
@@ -129,8 +128,11 @@ func CancelExpense(userID, requestID int64) error {
 		requestID, userID,
 	).Scan(&status, &amount)
 
+	if err == pgx.ErrNoRows {
+		return apperrors.ErrExpenseRequestNotFound
+	}
 	if err != nil {
-		return err
+		return apperrors.ErrQueryFailed
 	}
 	// reuse CanCancel from apply_cancel_rules.go
 	if err := helpers.CanCancel(status); err != nil {

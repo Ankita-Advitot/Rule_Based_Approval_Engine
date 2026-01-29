@@ -136,12 +136,7 @@ func CancelExpense(c *gin.Context) {
 
 	err = services.CancelExpense(userID, requestID)
 	if err != nil {
-		response.Error(
-			c,
-			http.StatusBadRequest,
-			"unable to cancel expense request",
-			err.Error(),
-		)
+		handleCancelExpenseError(c, err)
 		return
 	}
 
@@ -150,4 +145,17 @@ func CancelExpense(c *gin.Context) {
 		"expense request cancelled successfully",
 		nil,
 	)
+}
+
+func handleCancelExpenseError(c *gin.Context, err error) {
+	status := http.StatusInternalServerError
+
+	switch err {
+	case apperrors.ErrExpenseRequestNotFound:
+		status = http.StatusNotFound
+	case apperrors.ErrRequestCannotCancel:
+		status = http.StatusBadRequest
+	}
+
+	response.Error(c, status, "unable to cancel expense request", err.Error())
 }

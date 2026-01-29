@@ -2,7 +2,6 @@ package helpers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
@@ -39,7 +38,7 @@ func MakeDecision(
 func CanCancel(status string) error {
 	switch status {
 	case "APPROVED", "REJECTED", "CANCELLED":
-		return errors.New("cannot cancel finalized request")
+		return apperrors.ErrRequestCannotCancel
 	default:
 		return nil
 	}

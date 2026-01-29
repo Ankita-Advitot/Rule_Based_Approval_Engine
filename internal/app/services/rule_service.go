@@ -3,10 +3,11 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 
 	"rule-based-approval-engine/internal/database"
 	"rule-based-approval-engine/internal/models"
+	"rule-based-approval-engine/internal/pkg/apperrors"
 )
 
 func GetRule(requestType string, gradeID int64) (*models.Rule, error) {
@@ -23,7 +24,7 @@ func GetRule(requestType string, gradeID int64) (*models.Rule, error) {
 	).Scan(&rule.ID, &conditionJSON, &rule.Action)
 
 	if err != nil {
-		return nil, errors.New("no rule found")
+		return nil, apperrors.ErrNoRuleFound
 	}
 
 	err = json.Unmarshal(conditionJSON, &rule.Condition)
@@ -36,28 +37,28 @@ func GetRule(requestType string, gradeID int64) (*models.Rule, error) {
 
 func CreateRule(role string, rule models.Rule) error {
 	if role != "ADMIN" {
-		return errors.New("unauthorized")
+		return apperrors.ErrUnauthorized
 	}
 
 	if rule.RequestType == "" {
-		return errors.New("request_type is required")
+		return apperrors.ErrRequestTypeRequired
 	}
 
 	if rule.Action == "" {
-		return errors.New("action is required")
+		return apperrors.ErrActionRequired
 	}
 
 	if rule.GradeID == 0 {
-		return errors.New("grade_id is required")
+		return apperrors.ErrGradeIDRequired
 	}
 
 	if rule.Condition == nil || len(rule.Condition) == 0 {
-		return errors.New("condition is required")
+		return apperrors.ErrConditionRequired
 	}
 
 	conditionJSON, err := json.Marshal(rule.Condition)
 	if err != nil {
-		return errors.New("invalid condition JSON")
+		return apperrors.ErrInvalidConditionJSON
 	}
 
 	ctx := context.Background()
@@ -80,13 +81,15 @@ func CreateRule(role string, rule models.Rule) error {
 		rule.GradeID,
 		rule.Active,
 	)
-
+	if err != nil {
+		return fmt.Errorf("%w: %v", apperrors.ErrDatabase, err)
+	}
 	return err
 }
 
 func GetRules(role string) ([]models.Rule, error) {
 	if role != "ADMIN" {
-		return nil, errors.New("unauthorized")
+		return nil, apperrors.ErrUnauthorized
 	}
 
 	ctx := context.Background()
@@ -127,7 +130,7 @@ func GetRules(role string) ([]models.Rule, error) {
 
 func UpdateRule(role string, ruleID int64, rule models.Rule) error {
 	if role != "ADMIN" {
-		return errors.New("unauthorized")
+		return apperrors.ErrUnauthorized
 	}
 
 	ctx := context.Background()
@@ -159,7 +162,7 @@ func UpdateRule(role string, ruleID int64, rule models.Rule) error {
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return errors.New("rule not found")
+		return apperrors.ErrNoRuleFound
 	}
 
 	return nil
@@ -167,7 +170,7 @@ func UpdateRule(role string, ruleID int64, rule models.Rule) error {
 
 func DeleteRule(role string, ruleID int64) error {
 	if role != "ADMIN" {
-		return errors.New("unauthorized")
+		return apperrors.ErrUnauthorized
 	}
 
 	ctx := context.Background()
@@ -183,7 +186,7 @@ func DeleteRule(role string, ruleID int64) error {
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return errors.New("rule not found")
+		return apperrors.ErrRuleNotFoundForDelete
 	}
 
 	return nil
