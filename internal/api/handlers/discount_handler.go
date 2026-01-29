@@ -38,7 +38,7 @@ func ApplyDiscount(c *gin.Context) {
 		return
 	}
 
-	message, err := services.ApplyDiscount(
+	message, status, err := services.ApplyDiscount(
 		userID,
 		req.DiscountPercentage,
 		req.Reason,
@@ -53,7 +53,7 @@ func ApplyDiscount(c *gin.Context) {
 		c,
 		message,
 		gin.H{
-			"status": "PENDING or AUTO_APPROVED",
+			"status": status,
 		},
 	)
 }

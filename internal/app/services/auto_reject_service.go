@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/pkg/utils" 
+	"rule-based-approval-engine/internal/pkg/utils"
 	"time"
 )
 
@@ -35,7 +35,7 @@ func AutoRejectLeaveRequests() error {
 			_, _ = database.DB.Exec(
 				ctx,
 				`UPDATE leave_requests
-				 SET status='REJECTED',
+				 SET status='AUTO_REJECTED',
 				     approval_comment='Auto rejected after 7 working days'
 				 WHERE id=$1`,
 				id,
@@ -73,7 +73,7 @@ func AutoRejectExpenseRequests() error {
 			_, _ = database.DB.Exec(
 				ctx,
 				`UPDATE expense_requests
-				 SET status='REJECTED',
+				 SET status='AUTO_REJECTED',
 				     approval_comment='Auto rejected after 7 working days'
 				 WHERE id=$1`,
 				id,
@@ -111,7 +111,7 @@ func AutoRejectDiscountRequests() error {
 			_, _ = database.DB.Exec(
 				ctx,
 				`UPDATE discount_requests
-				 SET status='REJECTED',
+				 SET status='AUTO_REJECTED',
 				     approval_comment='Auto rejected after 7 working days'
 				 WHERE id=$1`,
 				id,

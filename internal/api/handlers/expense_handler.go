@@ -39,7 +39,7 @@ func ApplyExpense(c *gin.Context) {
 		return
 	}
 
-	message, err := services.ApplyExpense(
+	message, status, err := services.ApplyExpense(
 		userID,
 		req.Amount,
 		req.Category,
@@ -55,7 +55,7 @@ func ApplyExpense(c *gin.Context) {
 		c,
 		message,
 		gin.H{
-			"status": "PENDING or AUTO_APPROVED",
+			"status": status,
 		},
 	)
 }

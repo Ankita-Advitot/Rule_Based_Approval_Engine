@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/utils"
@@ -20,7 +21,7 @@ func ApplyLeave(
 	leaveType string,
 	reason string,
 ) (string, string, error) {
-	ctx := context.Background()
+	ctx := context.Background() 
 
 	// ---- Input validations ----
 	if userID <= 0 {
@@ -44,7 +45,7 @@ func ApplyLeave(
 		return "", "", apperrors.ErrLeaveOverlap
 	}
 
-	tx, err := database.DB.Begin(ctx)
+	tx, err := database.DB.Begin(ctx) 
 	if err != nil {
 		return "", "", errors.New("unable to start transaction")
 	}
@@ -70,7 +71,7 @@ func ApplyLeave(
 	}
 
 	// ---- Fetch user grade ----
-	gradeID, err := FetchUserGrade(ctx, tx, userID)
+	gradeID, err := helpers.FetchUserGrade(ctx, tx, userID)
 	if err != nil {
 		return "", "", err
 	}
@@ -82,7 +83,7 @@ func ApplyLeave(
 	}
 
 	// ---- Decision ----
-	result := MakeDecision("LEAVE", rule.Condition, float64(days))
+	result := helpers.MakeDecision("LEAVE", rule.Condition, float64(days))
 	status := result.Status
 	message := result.Message
 
@@ -95,7 +96,7 @@ func ApplyLeave(
 	)
 
 	if err != nil {
-		return "", "", errors.New("failed to create leave request")
+		return "", "", helpers.MapPgError(err)
 	}
 
 	// ---- Deduct balance if auto-approved ----
@@ -108,8 +109,9 @@ func ApplyLeave(
 			days, userID,
 		)
 		if err != nil {
-			return "", "", errors.New("failed to update leave balance")
+			return "", "", helpers.MapPgError(err)
 		}
+
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -132,7 +134,7 @@ func HasOverlappingLeave(
 		`SELECT 1
 		 FROM leave_requests
 		 WHERE employee_id = $1
-		   AND status IN ('PENDING', 'APPROVED', 'AUTO_APPROVED')
+		   AND status IN ('PENDING', 'APPROVED', 'AUTO_APPROVED') 
 		   AND from_date <= $2
 		   AND to_date >= $3
 		 LIMIT 1`,
@@ -179,7 +181,7 @@ func CancelLeave(userID, requestID int64) error {
 	}
 
 	// reuse CanCancel from apply_cancel_rules.go
-	if err := CanCancel(status); err != nil {
+	if err := helpers.CanCancel(status); err != nil {
 		return err
 	}
 

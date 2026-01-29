@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
@@ -16,26 +17,26 @@ func ApplyExpense(
 	amount float64,
 	category string,
 	reason string,
-) (string, error) {
+) (string, string, error) {
 
 	ctx := context.Background()
 
 	// ---- Input validations ----
 	if userID <= 0 {
-		return "", errors.New("invalid user")
+		return "", "", errors.New("invalid user")
 	}
 
 	if amount <= 0 {
-		return "", apperrors.ErrInvalidExpenseAmount
+		return "", "", apperrors.ErrInvalidExpenseAmount
 	}
 
 	if strings.TrimSpace(category) == "" {
-		return "", apperrors.ErrInvalidExpenseCategory
+		return "", "", apperrors.ErrInvalidExpenseCategory
 	}
 
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return "", errors.New("unable to start transaction")
+		return "", "", errors.New("unable to start transaction")
 	}
 	defer tx.Rollback(ctx)
 
@@ -48,30 +49,30 @@ func ApplyExpense(
 	).Scan(&remaining)
 
 	if err == pgx.ErrNoRows {
-		return "", apperrors.ErrExpenseBalanceMissing
+		return "", "", apperrors.ErrExpenseBalanceMissing
 	}
 	if err != nil {
-		return "", errors.New("failed to fetch expense balance")
+		return "", "", errors.New("failed to fetch expense balance")
 	}
 
 	if amount > remaining {
-		return "", apperrors.ErrExpenseLimitExceeded
+		return "", "", apperrors.ErrExpenseLimitExceeded
 	}
 
 	// ---- Fetch user grade ----
-	gradeID, err := FetchUserGrade(ctx, tx, userID)
+	gradeID, err := helpers.FetchUserGrade(ctx, tx, userID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// ---- Fetch rule ----
 	rule, err := GetRule("EXPENSE", gradeID)
 	if err != nil {
-		return "", apperrors.ErrRuleNotFound
+		return "", "", apperrors.ErrRuleNotFound
 	}
 
 	// ---- Decision ----
-	result := MakeDecision("EXPENSE", rule.Condition, amount)
+	result := helpers.MakeDecision("EXPENSE", rule.Condition, amount)
 	status := result.Status
 	message := result.Message
 
@@ -84,7 +85,7 @@ func ApplyExpense(
 		userID, amount, category, reason, status, rule.ID,
 	)
 	if err != nil {
-		return "", errors.New("failed to create expense request")
+		return "", "", errors.New("failed to create expense request")
 	}
 
 	// ---- Deduct balance if auto-approved ----
@@ -97,15 +98,16 @@ func ApplyExpense(
 			amount, userID,
 		)
 		if err != nil {
-			return "", errors.New("failed to update expense balance")
+			return "", "", helpers.MapPgError(err)
 		}
+
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", errors.New("failed to commit transaction")
+		return "", "", errors.New("failed to commit transaction")
 	}
 
-	return message, nil
+	return message, status, nil
 }
 
 func CancelExpense(userID, requestID int64) error {
@@ -131,7 +133,7 @@ func CancelExpense(userID, requestID int64) error {
 		return err
 	}
 	// reuse CanCancel from apply_cancel_rules.go
-	if err := CanCancel(status); err != nil {
+	if err := helpers.CanCancel(status); err != nil {
 		return err
 	}
 

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
-	"rule-based-approval-engine/internal/pkg/helpers"
 	"rule-based-approval-engine/internal/pkg/utils"
 
 	"github.com/jackc/pgx/v5"
@@ -101,13 +101,13 @@ func ApproveLeave(
 	if err != nil {
 		return err
 	}
-
-	if err := helpers.ValidatePendingStatus(status); err != nil {
-		return err
-	}
 	if approverID == employeeID {
 		return errors.New("self approval is not allowed")
 	}
+	if err := helpers.ValidatePendingStatus(status); err != nil {
+		return err
+	}
+
 	// Authorization
 	var requesterRole string
 	err = tx.QueryRow(

@@ -3,7 +3,7 @@ package services_test
 import (
 	"testing"
 
-	"rule-based-approval-engine/internal/helpers"
+	"rule-based-approval-engine/internal/app/services/helpers"
 )
 
 func TestValidatePendingStatus(t *testing.T) {

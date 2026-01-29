@@ -20,7 +20,6 @@ func main() {
 
 	router := gin.Default()
 
-	//CORS MUST COME BEFORE ROUTES
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -29,7 +28,6 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	//Register routes AFTER middleware
 	routes.Register(router)
 
 	//CRON SETUP

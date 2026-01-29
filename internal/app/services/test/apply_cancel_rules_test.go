@@ -1,7 +1,7 @@
 package services_test
 
 import (
-	"rule-based-approval-engine/internal/services"
+	"rule-based-approval-engine/internal/app/services/helpers"
 	"testing"
 )
 
@@ -62,7 +62,7 @@ func TestMakeDecision(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := services.MakeDecision(tt.requestType, tt.condition, tt.value)
+			result := helpers.MakeDecision(tt.requestType, tt.condition, tt.value)
 
 			if result.Status != tt.expectStatus {
 				t.Errorf(
@@ -92,7 +92,7 @@ func TestCanCancel(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		err := services.CanCancel(tt.status)
+		err := helpers.CanCancel(tt.status)
 
 		if tt.expectError && err == nil {
 			t.Errorf("expected error for status %s, got nil", tt.status)

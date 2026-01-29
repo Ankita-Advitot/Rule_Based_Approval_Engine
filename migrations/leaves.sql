@@ -4,6 +4,7 @@ CREATE TYPE leave_status AS ENUM (
   'PENDING',
   'APPROVED',
   'REJECTED',
+  'AUTO_REJECTED',
   'CANCELLED'
 );
 

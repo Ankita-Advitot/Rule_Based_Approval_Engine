@@ -4,6 +4,7 @@ CREATE TYPE expense_status AS ENUM (
   'PENDING',
   'APPROVED',
   'REJECTED',
+  'AUTO_REJECTED',
   'CANCELLED'
 );
 
@@ -16,6 +17,6 @@ CREATE TABLE expense_requests (
     status expense_status NOT NULL,
     rule_id BIGINT,
     approved_by_id BIGINT REFERENCES users(id),
-    approval_comment TEXT DEFAULT 'Not Updated by manager',,
+    approval_comment TEXT DEFAULT 'Not Updated by manager',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

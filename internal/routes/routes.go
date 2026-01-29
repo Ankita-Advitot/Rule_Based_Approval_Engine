@@ -9,16 +9,10 @@ import (
 
 func Register(r *gin.Engine) {
 
-	// -----------------------
-	// HEALTH CHECK
-	// -----------------------
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "UP"})
 	})
 
-	// -----------------------
-	// AUTH (PUBLIC)
-	// -----------------------
 	auth := r.Group("/auth")
 	{
 		auth.POST("/register", handlers.Register)
@@ -27,13 +21,9 @@ func Register(r *gin.Engine) {
 
 	}
 
-	// -----------------------
-	// PROTECTED (JWT REQUIRED)
-	// -----------------------
 	protected := r.Group("/api")
 	protected.Use(middleware.JWTAuth())
 	{
-		// Logged-in user info
 		protected.GET("/me", func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"user_id": c.GetInt64("user_id"),
@@ -44,24 +34,16 @@ func Register(r *gin.Engine) {
 		// Balances
 		protected.GET("/balances", handlers.GetMyBalances)
 
-		// -----------------------
-		// LEAVES
-		// -----------------------
 		leaves := protected.Group("/leaves")
 		{
 			leaves.POST("/request", handlers.ApplyLeave)
 			leaves.POST("/:id/cancel", handlers.CancelLeave)
 			leaves.GET("/my", handlers.GetMyLeaves)
 
-			// Manager/Admin actions
 			leaves.GET("/pending", handlers.GetPendingLeaves)
 			leaves.POST("/:id/approve", handlers.ApproveLeave)
 			leaves.POST("/:id/reject", handlers.RejectLeave)
 		}
-
-		// -----------------------
-		// EXPENSES
-		// -----------------------
 
 		expenses := protected.Group("/expenses")
 		{
@@ -75,9 +57,6 @@ func Register(r *gin.Engine) {
 			expenses.POST("/:id/reject", handlers.RejectExpense)
 		}
 
-		// -----------------------
-		// DISCOUNTS
-		// -----------------------
 		discounts := protected.Group("/discounts")
 		{
 			discounts.POST("/request", handlers.ApplyDiscount)
@@ -91,18 +70,13 @@ func Register(r *gin.Engine) {
 			discounts.POST("/:id/reject", handlers.RejectDiscount)
 		}
 
-		// -----------------------
-		// SYSTEM (CRON / INTERNAL)
-		// -----------------------
 		system := protected.Group("/system")
 		{
+
 			// Manual trigger for testing auto-reject
 			system.POST("/run-auto-reject", handlers.RunAutoReject)
 		}
 
-		// -----------------------
-		// ADMIN ONLY
-		// -----------------------
 		admin := protected.Group("/admin")
 		{
 			admin.POST("/holidays", handlers.AddHoliday)

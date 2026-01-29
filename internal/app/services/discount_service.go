@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"rule-based-approval-engine/internal/app/services/helpers"
 	"rule-based-approval-engine/internal/database"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
@@ -14,22 +15,22 @@ func ApplyDiscount(
 	userID int64,
 	percent float64,
 	reason string,
-) (string, error) {
+) (string, string, error) {
 
 	ctx := context.Background()
 
 	// ---- Input validations ----
 	if userID <= 0 {
-		return "", errors.New("invalid user")
+		return "", "", errors.New("invalid user")
 	}
 
 	if percent <= 0 {
-		return "", apperrors.ErrInvalidDiscountPercent
+		return "", "", apperrors.ErrInvalidDiscountPercent
 	}
 
 	tx, err := database.DB.Begin(ctx)
 	if err != nil {
-		return "", errors.New("unable to start transaction")
+		return "", "", errors.New("unable to start transaction")
 	}
 	defer tx.Rollback(ctx)
 
@@ -42,30 +43,30 @@ func ApplyDiscount(
 	).Scan(&remaining)
 
 	if err == pgx.ErrNoRows {
-		return "", apperrors.ErrDiscountBalanceMissing
+		return "", "", apperrors.ErrDiscountBalanceMissing
 	}
 	if err != nil {
-		return "", errors.New("failed to fetch discount balance")
+		return "", "", errors.New("failed to fetch discount balance")
 	}
 
 	if percent > remaining {
-		return "", apperrors.ErrDiscountLimitExceeded
+		return "", "", apperrors.ErrDiscountLimitExceeded
 	}
 
 	// ---- Fetch user grade ----
-	gradeID, err := FetchUserGrade(ctx, tx, userID)
+	gradeID, err := helpers.FetchUserGrade(ctx, tx, userID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// ---- Fetch rule ----
 	rule, err := GetRule("DISCOUNT", gradeID)
 	if err != nil {
-		return "", apperrors.ErrRuleNotFound
+		return "", "", apperrors.ErrRuleNotFound
 	}
 
 	// ---- Decision ----
-	result := MakeDecision("DISCOUNT", rule.Condition, percent)
+	result := helpers.MakeDecision("DISCOUNT", rule.Condition, percent)
 	status := result.Status
 	message := result.Message
 
@@ -78,7 +79,7 @@ func ApplyDiscount(
 		userID, percent, reason, status, rule.ID,
 	)
 	if err != nil {
-		return "", errors.New("failed to create discount request")
+		return "", "", errors.New("failed to create discount request")
 	}
 
 	// ---- Deduct discount if auto-approved ----
@@ -91,15 +92,15 @@ func ApplyDiscount(
 			percent, userID,
 		)
 		if err != nil {
-			return "", errors.New("failed to update discount balance")
+			return "", "", errors.New("failed to update discount balance")
 		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return "", errors.New("failed to commit transaction")
+		return "", "", errors.New("failed to commit transaction")
 	}
 
-	return message, nil
+	return message, status, nil
 }
 func CancelDiscount(userID, requestID int64) error {
 	ctx := context.Background()
@@ -129,7 +130,7 @@ func CancelDiscount(userID, requestID int64) error {
 	}
 
 	// reuse CanCancel from apply_cancel_rules.go
-	if err := CanCancel(status); err != nil {
+	if err := helpers.CanCancel(status); err != nil {
 		return err
 	}
 
