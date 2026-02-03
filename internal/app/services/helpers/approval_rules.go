@@ -1,11 +1,12 @@
 package helpers
 
 import (
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 )
 
 func ValidatePendingStatus(status string) error {
-	if status != "PENDING" {
+	if status != constants.StatusPending {
 		return apperrors.ErrRequestNotPending
 	}
 	return nil
@@ -14,30 +15,30 @@ func ValidatePendingStatus(status string) error {
 func ValidateApproverRole(approverRole, requesterRole string) error {
 
 	// Employee can never approve
-	if approverRole == "EMPLOYEE" {
+	if approverRole == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 
 	// Admin can approve anyone
-	if approverRole == "ADMIN" {
+	if approverRole == constants.RoleAdmin {
 		return nil
 	}
 
 	// Manager rules
-	if approverRole == "MANAGER" {
+	if approverRole == constants.RoleManager {
 
 		// Manager can approve employee only
-		if requesterRole == "EMPLOYEE" {
+		if requesterRole == constants.RoleEmployee {
 			return nil
 		}
 
 		// Manager approving manager
-		if requesterRole == "MANAGER" {
+		if requesterRole == constants.RoleManager {
 			return apperrors.ErrManagerNeedsAdmin
 		}
 
 		// Admin never requests, but safety net
-		if requesterRole == "ADMIN" {
+		if requesterRole == constants.RoleAdmin {
 			return apperrors.ErrAdminRequestNotAllowed
 		}
 	}

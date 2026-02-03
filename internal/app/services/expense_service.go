@@ -6,6 +6,7 @@ import (
 
 	"rule-based-approval-engine/internal/app/repositories"
 	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/models"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
@@ -108,7 +109,7 @@ func (s *ExpenseService) ApplyExpense(
 	}
 
 	// deduct if auto-approved
-	if status == "AUTO_APPROVED" {
+	if status == constants.StatusAutoApproved {
 		err = s.balanceRepo.DeductExpenseBalance(ctx, tx, userID, amount)
 		if err != nil {
 			return "", "", err
@@ -150,7 +151,7 @@ func (s *ExpenseService) CancelExpense(ctx context.Context, userID, requestID in
 		return err
 	}
 
-	if expenseReq.Status == "AUTO_APPROVED" {
+	if expenseReq.Status == constants.StatusAutoApproved {
 		err = s.balanceRepo.RestoreExpenseBalance(ctx, tx, userID, expenseReq.Amount)
 		if err != nil {
 			return err

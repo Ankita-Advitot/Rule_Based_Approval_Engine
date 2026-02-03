@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"rule-based-approval-engine/internal/app/repositories"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 )
 
@@ -17,7 +18,7 @@ func NewHolidayService(holidayRepo repositories.HolidayRepository) *HolidayServi
 }
 
 func (s *HolidayService) ensureAdmin(role string) error {
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		return apperrors.ErrAdminOnly
 	}
 	return nil

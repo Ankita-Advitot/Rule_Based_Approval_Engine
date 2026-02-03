@@ -5,6 +5,7 @@ import (
 
 	"rule-based-approval-engine/internal/app/repositories"
 	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/models"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
@@ -99,7 +100,7 @@ func (s *DiscountService) ApplyDiscount(
 	}
 
 	// deduct if auto-approved
-	if status == "AUTO_APPROVED" {
+	if status == constants.StatusApproved {
 		err = s.balanceRepo.DeductDiscountBalance(ctx, tx, userID, percent)
 		if err != nil {
 			return "", "", err
@@ -139,7 +140,7 @@ func (s *DiscountService) CancelDiscount(ctx context.Context, userID, requestID 
 		return apperrors.ErrUpdateFailed
 	}
 
-	if discountReq.Status == "AUTO_APPROVED" {
+	if discountReq.Status == constants.StatusAutoApproved {
 		err = s.balanceRepo.RestoreDiscountBalance(ctx, tx, userID, discountReq.DiscountPercentage)
 		if err != nil {
 			return err

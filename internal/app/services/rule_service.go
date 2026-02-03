@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"rule-based-approval-engine/internal/app/repositories"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/models"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 )
@@ -28,7 +29,7 @@ func (s *RuleService) GetRule(ctx context.Context, requestType string, gradeID i
 
 // CreateRule creates or updates a rule (admin only)
 func (s *RuleService) CreateRule(ctx context.Context, role string, rule models.Rule) error {
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		return apperrors.ErrUnauthorized
 	}
 
@@ -58,7 +59,7 @@ func (s *RuleService) CreateRule(ctx context.Context, role string, rule models.R
 
 // GetRules retrieves all rules (admin only)
 func (s *RuleService) GetRules(ctx context.Context, role string) ([]models.Rule, error) {
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		return nil, apperrors.ErrUnauthorized
 	}
 
@@ -67,7 +68,7 @@ func (s *RuleService) GetRules(ctx context.Context, role string) ([]models.Rule,
 
 // updates an existing rule (admin only)
 func (s *RuleService) UpdateRule(ctx context.Context, role string, ruleID int64, rule models.Rule) error {
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		return apperrors.ErrUnauthorized
 	}
 
@@ -76,7 +77,7 @@ func (s *RuleService) UpdateRule(ctx context.Context, role string, ruleID int64,
 
 // deletes a rule by ID (admin only)
 func (s *RuleService) DeleteRule(ctx context.Context, role string, ruleID int64) error {
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		return apperrors.ErrUnauthorized
 	}
 

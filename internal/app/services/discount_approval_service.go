@@ -5,6 +5,7 @@ import (
 
 	"rule-based-approval-engine/internal/app/repositories"
 	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,9 +33,9 @@ func NewDiscountApprovalService(
 }
 
 func (s *DiscountApprovalService) GetPendingDiscountRequests(ctx context.Context, role string, approverID int64) ([]map[string]interface{}, error) {
-	if role == "MANAGER" {
+	if role == constants.RoleManager {
 		return s.discountReqRepo.GetPendingForManager(ctx, approverID)
-	} else if role == "ADMIN" {
+	} else if role == constants.RoleAdmin {
 		return s.discountReqRepo.GetPendingForAdmin(ctx)
 	} else {
 		return nil, apperrors.ErrUnauthorized
@@ -42,7 +43,7 @@ func (s *DiscountApprovalService) GetPendingDiscountRequests(ctx context.Context
 }
 
 func (s *DiscountApprovalService) ApproveDiscount(ctx context.Context, role string, approverID, requestID int64, comment string) error {
-	if role == "EMPLOYEE" {
+	if role == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 
@@ -88,7 +89,7 @@ func (s *DiscountApprovalService) ApproveDiscount(ctx context.Context, role stri
 }
 
 func (s *DiscountApprovalService) RejectDiscount(ctx context.Context, role string, approverID, requestID int64, comment string) error {
-	if role == "EMPLOYEE" {
+	if role == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 

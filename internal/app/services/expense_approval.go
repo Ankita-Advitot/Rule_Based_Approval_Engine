@@ -5,6 +5,7 @@ import (
 
 	"rule-based-approval-engine/internal/app/repositories"
 	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -35,9 +36,9 @@ func NewExpenseApprovalService(
 
 // GetPendingExpenseRequests retrieves pending expense requests based on role
 func (s *ExpenseApprovalService) GetPendingExpenseRequests(ctx context.Context, role string, approverID int64) ([]map[string]interface{}, error) {
-	if role == "MANAGER" {
+	if role == constants.RoleManager {
 		return s.expenseReqRepo.GetPendingForManager(ctx, approverID)
-	} else if role == "ADMIN" {
+	} else if role == constants.RoleAdmin {
 		return s.expenseReqRepo.GetPendingForAdmin(ctx)
 	} else {
 		return nil, apperrors.ErrUnauthorized
@@ -52,7 +53,7 @@ func (s *ExpenseApprovalService) ApproveExpense(
 	comment string,
 ) error {
 	// check role
-	if role == "EMPLOYEE" {
+	if role == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 
@@ -109,7 +110,7 @@ func (s *ExpenseApprovalService) RejectExpense(
 	comment string,
 ) error {
 	// check role
-	if role == "EMPLOYEE" {
+	if role == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 

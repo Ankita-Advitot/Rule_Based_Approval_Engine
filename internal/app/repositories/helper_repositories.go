@@ -9,6 +9,63 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	helperQueryGetMyLeaves = `SELECT id, leave_type, from_date, to_date, status, reason, approval_comment, created_at
+		 FROM leave_requests
+		 WHERE employee_id = $1
+		 ORDER BY created_at DESC`
+	helperQueryGetMyExpenses = `SELECT id, amount, category, status, reason, approval_comment, created_at
+		 FROM expense_requests
+		 WHERE employee_id = $1
+		 ORDER BY created_at DESC`
+	helperQueryGetMyDiscounts = `SELECT id, discount_percentage, status, reason, approval_comment, created_at
+		 FROM discount_requests
+		 WHERE employee_id = $1
+		 ORDER BY created_at DESC`
+	helperQueryAddHoliday = `INSERT INTO holidays (holiday_date, description, created_by)
+		 VALUES ($1,$2,$3)`
+	helperQueryGetHolidays   = `SELECT id, holiday_date, description FROM holidays ORDER BY holiday_date`
+	helperQueryDeleteHoliday = `DELETE FROM holidays WHERE id=$1`
+	helperQueryGetStatusDist = `
+				SELECT status_text, COUNT(*) FROM (
+			SELECT status::text AS status_text FROM leave_requests
+		) l
+		GROUP BY status_text
+
+		UNION ALL
+
+		SELECT status_text, COUNT(*) FROM (
+			SELECT status::text AS status_text FROM expense_requests
+		) e
+		GROUP BY status_text
+
+		UNION ALL
+
+		SELECT status_text, COUNT(*) FROM (
+			SELECT status::text AS status_text FROM discount_requests
+		) d
+		GROUP BY status_text;		
+	`
+	helperQueryGetTypeReport = `
+					SELECT 'LEAVE', COUNT(*),
+		COUNT(*) FILTER (WHERE status_text='AUTO_APPROVED')
+	FROM (SELECT status::text AS status_text FROM leave_requests) l
+
+	UNION ALL
+
+	SELECT 'EXPENSE', COUNT(*),
+		COUNT(*) FILTER (WHERE status_text='AUTO_APPROVED')
+	FROM (SELECT status::text AS status_text FROM expense_requests) e
+
+	UNION ALL
+
+	SELECT 'DISCOUNT', COUNT(*),
+		COUNT(*) FILTER (WHERE status_text='AUTO_APPROVED')
+	FROM (SELECT status::text AS status_text FROM discount_requests) d
+	`
+	helperQueryIsHoliday = `SELECT COUNT(*) FROM holidays WHERE holiday_date=$1`
+)
+
 type myRequestsRepository struct {
 	db *pgxpool.Pool
 }
@@ -21,10 +78,7 @@ func NewMyRequestsRepository(db *pgxpool.Pool) MyRequestsRepository {
 func (r *myRequestsRepository) GetMyLeaveRequests(ctx context.Context, userID int64) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT id, leave_type, from_date, to_date, status, reason, approval_comment, created_at
-		 FROM leave_requests
-		 WHERE employee_id = $1
-		 ORDER BY created_at DESC`,
+		helperQueryGetMyLeaves,
 		userID,
 	)
 	if err != nil {
@@ -88,10 +142,7 @@ func (r *myRequestsRepository) GetMyLeaveRequests(ctx context.Context, userID in
 func (r *myRequestsRepository) GetMyExpenseRequests(ctx context.Context, userID int64) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT id, amount, category, status, reason, approval_comment, created_at
-		 FROM expense_requests
-		 WHERE employee_id = $1
-		 ORDER BY created_at DESC`,
+		helperQueryGetMyExpenses,
 		userID,
 	)
 	if err != nil {
@@ -141,10 +192,7 @@ func (r *myRequestsRepository) GetMyExpenseRequests(ctx context.Context, userID 
 func (r *myRequestsRepository) GetMyDiscountRequests(ctx context.Context, userID int64) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT id, discount_percentage, status, reason, approval_comment, created_at
-		 FROM discount_requests
-		 WHERE employee_id = $1
-		 ORDER BY created_at DESC`,
+		helperQueryGetMyDiscounts,
 		userID,
 	)
 	if err != nil {
@@ -197,8 +245,7 @@ type holidayRepository struct {
 func (r *holidayRepository) AddHoliday(ctx context.Context, date time.Time, desc string, adminID int64) error {
 	_, err := r.db.Exec(
 		ctx,
-		`INSERT INTO holidays (holiday_date, description, created_by)
-		 VALUES ($1,$2,$3)`,
+		helperQueryAddHoliday,
 		date, desc, adminID,
 	)
 	return err
@@ -207,7 +254,7 @@ func (r *holidayRepository) AddHoliday(ctx context.Context, date time.Time, desc
 func (r *holidayRepository) GetHolidays(ctx context.Context) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT id, holiday_date, description FROM holidays ORDER BY holiday_date`,
+		helperQueryGetHolidays,
 	)
 	if err != nil {
 		return nil, err
@@ -237,7 +284,7 @@ func (r *holidayRepository) GetHolidays(ctx context.Context) ([]map[string]inter
 func (r *holidayRepository) DeleteHoliday(ctx context.Context, holidayID int64) error {
 	_, err := r.db.Exec(
 		ctx,
-		`DELETE FROM holidays WHERE id=$1`,
+		helperQueryDeleteHoliday,
 		holidayID,
 	)
 	return err
@@ -252,26 +299,7 @@ func NewReportRepository(db *pgxpool.Pool) ReportRepository {
 }
 
 func (r *reportRepository) GetRequestStatusDistribution(ctx context.Context) (map[string]int, error) {
-	rows, err := r.db.Query(ctx, `
-				SELECT status_text, COUNT(*) FROM (
-			SELECT status::text AS status_text FROM leave_requests
-		) l
-		GROUP BY status_text
-
-		UNION ALL
-
-		SELECT status_text, COUNT(*) FROM (
-			SELECT status::text AS status_text FROM expense_requests
-		) e
-		GROUP BY status_text
-
-		UNION ALL
-
-		SELECT status_text, COUNT(*) FROM (
-			SELECT status::text AS status_text FROM discount_requests
-		) d
-		GROUP BY status_text;		
-	`)
+	rows, err := r.db.Query(ctx, helperQueryGetStatusDist)
 	if err != nil {
 		return nil, err
 	}
@@ -311,23 +339,7 @@ func (r *reportRepository) GetRequestStatusDistribution(ctx context.Context) (ma
 }
 
 func (r *reportRepository) GetRequestsByTypeReport(ctx context.Context) ([]models.RequestTypeReport, error) {
-	rows, err := r.db.Query(ctx, `
-					SELECT 'LEAVE', COUNT(*),
-		COUNT(*) FILTER (WHERE status_text='AUTO_APPROVED')
-	FROM (SELECT status::text AS status_text FROM leave_requests) l
-
-	UNION ALL
-
-	SELECT 'EXPENSE', COUNT(*),
-		COUNT(*) FILTER (WHERE status_text='AUTO_APPROVED')
-	FROM (SELECT status::text AS status_text FROM expense_requests) e
-
-	UNION ALL
-
-	SELECT 'DISCOUNT', COUNT(*),
-		COUNT(*) FILTER (WHERE status_text='AUTO_APPROVED')
-	FROM (SELECT status::text AS status_text FROM discount_requests) d
-	`)
+	rows, err := r.db.Query(ctx, helperQueryGetTypeReport)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +366,7 @@ func (r *holidayRepository) IsHoliday(ctx context.Context, date time.Time) (bool
 	var count int
 	err := r.db.QueryRow(
 		ctx,
-		`SELECT COUNT(*) FROM holidays WHERE holiday_date=$1`,
+		helperQueryIsHoliday,
 		date.Format("2006-01-02"),
 	).Scan(&count)
 	return count > 0, err

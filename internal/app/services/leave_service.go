@@ -6,6 +6,7 @@ import (
 
 	"rule-based-approval-engine/internal/app/repositories"
 	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/models"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/utils"
@@ -39,7 +40,7 @@ func NewLeaveService(
 	}
 }
 
-// ApplyLeave processes a leave application
+// processes a leave application
 func (s *LeaveService) ApplyLeave(
 	ctx context.Context,
 	userID int64,
@@ -127,7 +128,7 @@ func (s *LeaveService) ApplyLeave(
 	}
 
 	// deduct if auto-approved
-	if status == "AUTO_APPROVED" {
+	if status == constants.StatusApproved {
 		err = s.balanceRepo.DeductLeaveBalance(ctx, tx, userID, days)
 		if err != nil {
 			return "", "", err
@@ -141,7 +142,7 @@ func (s *LeaveService) ApplyLeave(
 	return message, status, nil
 }
 
-// CancelLeave cancels a leave request
+// cancels a leave request
 func (s *LeaveService) CancelLeave(ctx context.Context, userID, requestID int64) error {
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
@@ -171,7 +172,7 @@ func (s *LeaveService) CancelLeave(ctx context.Context, userID, requestID int64)
 		return err
 	}
 
-	if leaveReq.Status == "AUTO_APPROVED" {
+	if leaveReq.Status == constants.StatusAutoApproved {
 		err = s.balanceRepo.RestoreLeaveBalance(ctx, tx, userID, days)
 		if err != nil {
 			return err

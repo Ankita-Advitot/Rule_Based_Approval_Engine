@@ -10,6 +10,44 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	balanceQueryGetLeave        = `SELECT remaining_count FROM leaves WHERE user_id=$1`
+	balanceQueryGetLeaveFull    = `SELECT total_allocated, remaining_count FROM leaves WHERE user_id=$1`
+	balanceQueryGetExpense      = `SELECT remaining_amount FROM expense WHERE user_id=$1`
+	balanceQueryGetExpenseFull  = `SELECT total_amount, remaining_amount FROM expense WHERE user_id=$1`
+	balanceQueryGetDiscount     = `SELECT remaining_discount FROM discount WHERE user_id=$1`
+	balanceQueryGetDiscountFull = `SELECT total_discount, remaining_discount FROM discount WHERE user_id=$1`
+	balanceQueryDeductLeave     = `UPDATE leaves
+		 SET remaining_count = remaining_count - $1
+		 WHERE user_id=$2`
+	balanceQueryDeductExpense = `UPDATE expense
+		 SET remaining_amount = remaining_amount - $1
+		 WHERE user_id=$2`
+	balanceQueryDeductDiscount = `UPDATE discount
+		 SET remaining_discount = remaining_discount - $1
+		 WHERE user_id=$2`
+	balanceQueryRestoreLeave = `UPDATE leaves 
+		 SET remaining_count = remaining_count + $1
+		 WHERE user_id=$2`
+	balanceQueryRestoreExpense = `UPDATE expense
+		 SET remaining_amount = remaining_amount + $1
+		 WHERE user_id=$2`
+	balanceQueryRestoreDiscount = `UPDATE discount
+		 SET remaining_discount = remaining_discount + $1
+		 WHERE user_id=$2`
+	balanceQueryGetLimits = `SELECT annual_leave_limit, annual_expense_limit, discount_limit_percent
+		 FROM grades WHERE id=$1`
+	balanceQueryInitLeave = `INSERT INTO leaves (user_id, total_allocated, remaining_count)
+		 VALUES ($1,$2,$2)
+		 ON CONFLICT (user_id) DO NOTHING`
+	balanceQueryInitExpense = `INSERT INTO expense (user_id, total_amount, remaining_amount)
+		 VALUES ($1,$2,$2)
+		 ON CONFLICT (user_id) DO NOTHING`
+	balanceQueryInitDiscount = `INSERT INTO discount (user_id, total_discount, remaining_discount)
+		 VALUES ($1,$2,$2)
+		 ON CONFLICT (user_id) DO NOTHING`
+)
+
 type balanceRepository struct {
 	db *pgxpool.Pool
 }
@@ -24,7 +62,7 @@ func (r *balanceRepository) GetLeaveBalance(ctx context.Context, tx pgx.Tx, user
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT remaining_count FROM leaves WHERE user_id=$1`,
+		balanceQueryGetLeave,
 		userID,
 	).Scan(&remaining)
 
@@ -43,7 +81,7 @@ func (r *balanceRepository) GetLeaveFullBalance(ctx context.Context, tx pgx.Tx, 
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT total_allocated, remaining_count FROM leaves WHERE user_id=$1`,
+		balanceQueryGetLeaveFull,
 		userID,
 	).Scan(&total, &remaining)
 
@@ -62,7 +100,7 @@ func (r *balanceRepository) GetExpenseBalance(ctx context.Context, tx pgx.Tx, us
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT remaining_amount FROM expense WHERE user_id=$1`,
+		balanceQueryGetExpense,
 		userID,
 	).Scan(&remaining)
 
@@ -81,7 +119,7 @@ func (r *balanceRepository) GetExpenseFullBalance(ctx context.Context, tx pgx.Tx
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT total_amount, remaining_amount FROM expense WHERE user_id=$1`,
+		balanceQueryGetExpenseFull,
 		userID,
 	).Scan(&total, &remaining)
 
@@ -100,7 +138,7 @@ func (r *balanceRepository) GetDiscountBalance(ctx context.Context, tx pgx.Tx, u
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT remaining_discount FROM discount WHERE user_id=$1`,
+		balanceQueryGetDiscount,
 		userID,
 	).Scan(&remaining)
 
@@ -119,7 +157,7 @@ func (r *balanceRepository) GetDiscountFullBalance(ctx context.Context, tx pgx.T
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT total_discount, remaining_discount FROM discount WHERE user_id=$1`,
+		balanceQueryGetDiscountFull,
 		userID,
 	).Scan(&total, &remaining)
 
@@ -136,9 +174,7 @@ func (r *balanceRepository) GetDiscountFullBalance(ctx context.Context, tx pgx.T
 func (r *balanceRepository) DeductLeaveBalance(ctx context.Context, tx pgx.Tx, userID int64, days int) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE leaves
-		 SET remaining_count = remaining_count - $1
-		 WHERE user_id=$2`,
+		balanceQueryDeductLeave,
 		days, userID,
 	)
 
@@ -152,9 +188,7 @@ func (r *balanceRepository) DeductLeaveBalance(ctx context.Context, tx pgx.Tx, u
 func (r *balanceRepository) DeductExpenseBalance(ctx context.Context, tx pgx.Tx, userID int64, amount float64) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE expense
-		 SET remaining_amount = remaining_amount - $1
-		 WHERE user_id=$2`,
+		balanceQueryDeductExpense,
 		amount, userID,
 	)
 
@@ -168,9 +202,7 @@ func (r *balanceRepository) DeductExpenseBalance(ctx context.Context, tx pgx.Tx,
 func (r *balanceRepository) DeductDiscountBalance(ctx context.Context, tx pgx.Tx, userID int64, percent float64) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE discount
-		 SET remaining_discount = remaining_discount - $1
-		 WHERE user_id=$2`,
+		balanceQueryDeductDiscount,
 		percent, userID,
 	)
 
@@ -184,9 +216,7 @@ func (r *balanceRepository) DeductDiscountBalance(ctx context.Context, tx pgx.Tx
 func (r *balanceRepository) RestoreLeaveBalance(ctx context.Context, tx pgx.Tx, userID int64, days int) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE leaves 
-		 SET remaining_count = remaining_count + $1
-		 WHERE user_id=$2`,
+		balanceQueryRestoreLeave,
 		days, userID,
 	)
 
@@ -196,9 +226,7 @@ func (r *balanceRepository) RestoreLeaveBalance(ctx context.Context, tx pgx.Tx, 
 func (r *balanceRepository) RestoreExpenseBalance(ctx context.Context, tx pgx.Tx, userID int64, amount float64) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE expense
-		 SET remaining_amount = remaining_amount + $1
-		 WHERE user_id=$2`,
+		balanceQueryRestoreExpense,
 		amount, userID,
 	)
 
@@ -208,9 +236,7 @@ func (r *balanceRepository) RestoreExpenseBalance(ctx context.Context, tx pgx.Tx
 func (r *balanceRepository) RestoreDiscountBalance(ctx context.Context, tx pgx.Tx, userID int64, percent float64) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE discount
-		 SET remaining_discount = remaining_discount + $1
-		 WHERE user_id=$2`,
+		balanceQueryRestoreDiscount,
 		percent, userID,
 	)
 
@@ -224,8 +250,7 @@ func (r *balanceRepository) InitializeBalances(ctx context.Context, tx pgx.Tx, u
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT annual_leave_limit, annual_expense_limit, discount_limit_percent
-		 FROM grades WHERE id=$1`,
+		balanceQueryGetLimits,
 		gradeID,
 	).Scan(&leaveLimit, &expenseLimit, &discountLimit)
 
@@ -239,9 +264,7 @@ func (r *balanceRepository) InitializeBalances(ctx context.Context, tx pgx.Tx, u
 	// Leave wallet
 	_, err = tx.Exec(
 		ctx,
-		`INSERT INTO leaves (user_id, total_allocated, remaining_count)
-		 VALUES ($1,$2,$2)
-		 ON CONFLICT (user_id) DO NOTHING`,
+		balanceQueryInitLeave,
 		userID, leaveLimit,
 	)
 	if err != nil {
@@ -251,9 +274,7 @@ func (r *balanceRepository) InitializeBalances(ctx context.Context, tx pgx.Tx, u
 	// Expense wallet
 	_, err = tx.Exec(
 		ctx,
-		`INSERT INTO expense (user_id, total_amount, remaining_amount)
-		 VALUES ($1,$2,$2)
-		 ON CONFLICT (user_id) DO NOTHING`,
+		balanceQueryInitExpense,
 		userID, expenseLimit,
 	)
 	if err != nil {
@@ -263,9 +284,7 @@ func (r *balanceRepository) InitializeBalances(ctx context.Context, tx pgx.Tx, u
 	// Discount wallet
 	_, err = tx.Exec(
 		ctx,
-		`INSERT INTO discount (user_id, total_discount, remaining_discount)
-		 VALUES ($1,$2,$2)
-		 ON CONFLICT (user_id) DO NOTHING`,
+		balanceQueryInitDiscount,
 		userID, discountLimit,
 	)
 	if err != nil {

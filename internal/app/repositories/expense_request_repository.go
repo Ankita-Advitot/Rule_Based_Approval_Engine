@@ -11,6 +11,30 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	expenseQueryCreate = `INSERT INTO expense_requests
+		 (employee_id, amount, category, reason, status, rule_id)
+		 VALUES ($1, $2, $3, $4, $5, $6)`
+	expenseQueryGetByID = `SELECT employee_id, status, amount
+		 FROM expense_requests
+		 WHERE id=$1`
+	expenseQueryUpdateStatus = `UPDATE expense_requests
+		 SET status=$1,
+		     approved_by_id=$2,
+		     approval_comment=$3
+		 WHERE id=$4`
+	expenseQueryGetPendingForManager = `SELECT er.id, u.name, er.amount, er.category, er.reason, er.created_at 
+		 FROM expense_requests er
+		 JOIN users u ON er.employee_id = u.id
+		 WHERE er.status='PENDING' AND u.manager_id=$1`
+	expenseQueryGetPendingForAdmin = `SELECT er.id, u.name, er.amount, er.category, er.reason, er.created_at
+		 FROM expense_requests er
+		 JOIN users u ON er.employee_id = u.id
+		 WHERE er.status='PENDING'`
+	expenseQueryCancel             = `UPDATE expense_requests SET status='CANCELLED' WHERE id=$1`
+	expenseQueryGetPendingRequests = "SELECT id, created_at FROM expense_requests WHERE status='PENDING'"
+)
+
 type expenseRequestRepository struct {
 	db *pgxpool.Pool
 }
@@ -23,9 +47,7 @@ func NewExpenseRequestRepository(db *pgxpool.Pool) ExpenseRequestRepository {
 func (r *expenseRequestRepository) Create(ctx context.Context, tx pgx.Tx, req *models.ExpenseRequest) error {
 	_, err := tx.Exec(
 		ctx,
-		`INSERT INTO expense_requests
-		 (employee_id, amount, category, reason, status, rule_id)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		expenseQueryCreate,
 		req.EmployeeID,
 		req.Amount,
 		req.Category,
@@ -42,9 +64,7 @@ func (r *expenseRequestRepository) GetByID(ctx context.Context, tx pgx.Tx, reque
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT employee_id, status, amount
-		 FROM expense_requests
-		 WHERE id=$1`,
+		expenseQueryGetByID,
 		requestID,
 	).Scan(&req.EmployeeID, &req.Status, &req.Amount)
 
@@ -62,11 +82,7 @@ func (r *expenseRequestRepository) GetByID(ctx context.Context, tx pgx.Tx, reque
 func (r *expenseRequestRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, requestID int64, status string, approverID int64, comment string) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE expense_requests
-		 SET status=$1,
-		     approved_by_id=$2,
-		     approval_comment=$3
-		 WHERE id=$4`,
+		expenseQueryUpdateStatus,
 		status, approverID, comment, requestID,
 	)
 
@@ -76,10 +92,7 @@ func (r *expenseRequestRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, 
 func (r *expenseRequestRepository) GetPendingForManager(ctx context.Context, managerID int64) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT er.id, u.name, er.amount, er.category, er.reason, er.created_at 
-		 FROM expense_requests er
-		 JOIN users u ON er.employee_id = u.id
-		 WHERE er.status='PENDING' AND u.manager_id=$1`,
+		expenseQueryGetPendingForManager,
 		managerID,
 	)
 	if err != nil {
@@ -116,10 +129,7 @@ func (r *expenseRequestRepository) GetPendingForManager(ctx context.Context, man
 func (r *expenseRequestRepository) GetPendingForAdmin(ctx context.Context) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT er.id, u.name, er.amount, er.category, er.reason, er.created_at
-		 FROM expense_requests er
-		 JOIN users u ON er.employee_id = u.id
-		 WHERE er.status='PENDING'`,
+		expenseQueryGetPendingForAdmin,
 	)
 	if err != nil {
 		return nil, err
@@ -153,7 +163,7 @@ func (r *expenseRequestRepository) GetPendingForAdmin(ctx context.Context) ([]ma
 }
 
 func (r *expenseRequestRepository) Cancel(ctx context.Context, tx pgx.Tx, requestID int64) error {
-	_, err := tx.Exec(ctx, `UPDATE expense_requests SET status='CANCELLED' WHERE id=$1`, requestID)
+	_, err := tx.Exec(ctx, expenseQueryCancel, requestID)
 	return err
 }
 
@@ -161,7 +171,7 @@ func (r *expenseRequestRepository) GetPendingRequests(ctx context.Context) ([]st
 	ID        int64
 	CreatedAt time.Time
 }, error) {
-	rows, err := r.db.Query(ctx, "SELECT id, created_at FROM expense_requests WHERE status='PENDING'")
+	rows, err := r.db.Query(ctx, expenseQueryGetPendingRequests)
 	if err != nil {
 		return nil, err
 	}

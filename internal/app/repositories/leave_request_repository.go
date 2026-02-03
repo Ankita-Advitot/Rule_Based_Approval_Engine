@@ -11,6 +11,38 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	leaveQueryCreate = `INSERT INTO leave_requests
+		 (employee_id, from_date, to_date, reason, leave_type, status, rule_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	leaveQueryGetByID = `SELECT employee_id, status, from_date, to_date
+		 FROM leave_requests
+		 WHERE id=$1`
+	leaveQueryUpdateStatus = `UPDATE leave_requests
+		 SET status=$1,
+		     approved_by_id=$2,
+		     approval_comment=$3
+		 WHERE id=$4`
+	leaveQueryGetPendingForManager = `SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type, lr.reason, lr.created_at 
+		 FROM leave_requests lr
+		 JOIN users u ON lr.employee_id = u.id
+		 WHERE lr.status='PENDING'
+		   AND u.manager_id=$1`
+	leaveQueryGetPendingForAdmin = `SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type, lr.reason, lr.created_at
+		 FROM leave_requests lr
+		 JOIN users u ON lr.employee_id = u.id
+		 WHERE lr.status='PENDING'`
+	leaveQueryCheckOverlap = `SELECT 1
+		 FROM leave_requests
+		 WHERE employee_id = $1
+		   AND status IN ('PENDING', 'APPROVED', 'AUTO_APPROVED') 
+		   AND from_date <= $2
+		   AND to_date >= $3
+		 LIMIT 1`
+	leaveQueryCancel             = `UPDATE leave_requests SET status='CANCELLED' WHERE id=$1`
+	leaveQueryGetPendingRequests = "SELECT id, created_at FROM leave_requests WHERE status='PENDING'"
+)
+
 type leaveRequestRepository struct {
 	db *pgxpool.Pool
 }
@@ -22,9 +54,7 @@ func NewLeaveRequestRepository(db *pgxpool.Pool) LeaveRequestRepository {
 func (r *leaveRequestRepository) Create(ctx context.Context, tx pgx.Tx, req *models.LeaveRequest) error {
 	_, err := tx.Exec(
 		ctx,
-		`INSERT INTO leave_requests
-		 (employee_id, from_date, to_date, reason, leave_type, status, rule_id)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		leaveQueryCreate,
 		req.EmployeeID,
 		req.FromDate,
 		req.ToDate,
@@ -42,9 +72,7 @@ func (r *leaveRequestRepository) GetByID(ctx context.Context, tx pgx.Tx, request
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT employee_id, status, from_date, to_date
-		 FROM leave_requests
-		 WHERE id=$1`,
+		leaveQueryGetByID,
 		requestID,
 	).Scan(&req.EmployeeID, &req.Status, &req.FromDate, &req.ToDate)
 
@@ -62,11 +90,7 @@ func (r *leaveRequestRepository) GetByID(ctx context.Context, tx pgx.Tx, request
 func (r *leaveRequestRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, requestID int64, status string, approverID int64, comment string) error {
 	_, err := tx.Exec(
 		ctx,
-		`UPDATE leave_requests
-		 SET status=$1,
-		     approved_by_id=$2,
-		     approval_comment=$3
-		 WHERE id=$4`,
+		leaveQueryUpdateStatus,
 		status, approverID, comment, requestID,
 	)
 
@@ -76,11 +100,7 @@ func (r *leaveRequestRepository) UpdateStatus(ctx context.Context, tx pgx.Tx, re
 func (r *leaveRequestRepository) GetPendingForManager(ctx context.Context, managerID int64) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type, lr.reason, lr.created_at 
-		 FROM leave_requests lr
-		 JOIN users u ON lr.employee_id = u.id
-		 WHERE lr.status='PENDING'
-		   AND u.manager_id=$1`,
+		leaveQueryGetPendingForManager,
 		managerID,
 	)
 	if err != nil {
@@ -116,10 +136,7 @@ func (r *leaveRequestRepository) GetPendingForManager(ctx context.Context, manag
 func (r *leaveRequestRepository) GetPendingForAdmin(ctx context.Context) ([]map[string]interface{}, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT lr.id, u.name, lr.from_date, lr.to_date, lr.leave_type, lr.reason, lr.created_at
-		 FROM leave_requests lr
-		 JOIN users u ON lr.employee_id = u.id
-		 WHERE lr.status='PENDING'`,
+		leaveQueryGetPendingForAdmin,
 	)
 	if err != nil {
 		return nil, err
@@ -156,13 +173,7 @@ func (r *leaveRequestRepository) CheckOverlap(ctx context.Context, userID int64,
 
 	err := r.db.QueryRow(
 		ctx,
-		`SELECT 1
-		 FROM leave_requests
-		 WHERE employee_id = $1
-		   AND status IN ('PENDING', 'APPROVED', 'AUTO_APPROVED') 
-		   AND from_date <= $2
-		   AND to_date >= $3
-		 LIMIT 1`,
+		leaveQueryCheckOverlap,
 		userID,
 		toDate,
 		fromDate,
@@ -183,7 +194,7 @@ func (r *leaveRequestRepository) CheckOverlap(ctx context.Context, userID int64,
 }
 
 func (r *leaveRequestRepository) Cancel(ctx context.Context, tx pgx.Tx, requestID int64) error {
-	_, err := tx.Exec(ctx, `UPDATE leave_requests SET status='CANCELLED' WHERE id=$1`, requestID)
+	_, err := tx.Exec(ctx, leaveQueryCancel, requestID)
 	return err
 }
 
@@ -191,7 +202,7 @@ func (r *leaveRequestRepository) GetPendingRequests(ctx context.Context) ([]stru
 	ID        int64
 	CreatedAt time.Time
 }, error) {
-	rows, err := r.db.Query(ctx, "SELECT id, created_at FROM leave_requests WHERE status='PENDING'")
+	rows, err := r.db.Query(ctx, leaveQueryGetPendingRequests)
 	if err != nil {
 		return nil, err
 	}
