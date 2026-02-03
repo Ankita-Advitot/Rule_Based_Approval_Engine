@@ -10,6 +10,31 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	ruleQueryGetByTypeAndGrade = `SELECT id, condition, action 
+		 FROM rules 
+		 WHERE request_type=$1 AND grade_id=$2 AND active=true
+		 LIMIT 1`
+	ruleQueryCreate = `INSERT INTO rules (request_type, condition, action, grade_id, active)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (request_type, grade_id)
+		 DO UPDATE SET
+		 	condition  = EXCLUDED.condition,
+		 	action     = EXCLUDED.action,
+		 	active     = EXCLUDED.active,
+		 	updated_at = NOW()`
+	ruleQueryGetAll = `SELECT id, request_type, condition, action, grade_id, active
+		 FROM rules`
+	ruleQueryUpdate = `UPDATE rules
+		 SET request_type=$1,
+		     condition=$2,
+		     action=$3,
+		     grade_id=$4,
+		     active=$5
+		 WHERE id=$6`
+	ruleQueryDelete = `DELETE FROM rules WHERE id=$1`
+)
+
 type ruleRepository struct {
 	db *pgxpool.Pool
 }
@@ -25,10 +50,7 @@ func (r *ruleRepository) GetByTypeAndGrade(ctx context.Context, requestType stri
 
 	err := r.db.QueryRow(
 		ctx,
-		`SELECT id, condition, action 
-		 FROM rules 
-		 WHERE request_type=$1 AND grade_id=$2 AND active=true
-		 LIMIT 1`,
+		ruleQueryGetByTypeAndGrade,
 		requestType, gradeID,
 	).Scan(&rule.ID, &conditionJSON, &rule.Action)
 
@@ -52,14 +74,7 @@ func (r *ruleRepository) Create(ctx context.Context, rule *models.Rule) error {
 
 	_, err = r.db.Exec(
 		ctx,
-		`INSERT INTO rules (request_type, condition, action, grade_id, active)
-		 VALUES ($1, $2, $3, $4, $5)
-		 ON CONFLICT (request_type, grade_id)
-		 DO UPDATE SET
-		 	condition  = EXCLUDED.condition,
-		 	action     = EXCLUDED.action,
-		 	active     = EXCLUDED.active,
-		 	updated_at = NOW()`,
+		ruleQueryCreate,
 		rule.RequestType,
 		conditionJSON,
 		rule.Action,
@@ -73,8 +88,7 @@ func (r *ruleRepository) Create(ctx context.Context, rule *models.Rule) error {
 func (r *ruleRepository) GetAll(ctx context.Context) ([]models.Rule, error) {
 	rows, err := r.db.Query(
 		ctx,
-		`SELECT id, request_type, condition, action, grade_id, active
-		 FROM rules`,
+		ruleQueryGetAll,
 	)
 	if err != nil {
 		return nil, err
@@ -113,13 +127,7 @@ func (r *ruleRepository) Update(ctx context.Context, ruleID int64, rule *models.
 
 	cmd, err := r.db.Exec(
 		ctx,
-		`UPDATE rules
-		 SET request_type=$1,
-		     condition=$2,
-		     action=$3,
-		     grade_id=$4,
-		     active=$5
-		 WHERE id=$6`,
+		ruleQueryUpdate,
 		rule.RequestType,
 		conditionJSON,
 		rule.Action,
@@ -142,7 +150,7 @@ func (r *ruleRepository) Update(ctx context.Context, ruleID int64, rule *models.
 func (r *ruleRepository) Delete(ctx context.Context, ruleID int64) error {
 	cmd, err := r.db.Exec(
 		ctx,
-		`DELETE FROM rules WHERE id=$1`,
+		ruleQueryDelete,
 		ruleID,
 	)
 

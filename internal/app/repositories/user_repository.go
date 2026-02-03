@@ -10,6 +10,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const (
+	userQueryGetByEmail = `SELECT id, name, email, password_hash, grade_id, role, manager_id, created_at
+		 FROM users WHERE email=$1`
+	userQueryGetByID = `SELECT id, name, email, password_hash, grade_id, role, manager_id, created_at
+		 FROM users WHERE id=$1`
+	userQueryCreate = `INSERT INTO users (name, email, password_hash, grade_id, role, manager_id)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING id`
+	userQueryCheckEmailExists = `SELECT COUNT(*) FROM users WHERE email=$1`
+	userQueryGetRole          = `SELECT role FROM users WHERE id=$1`
+	userQueryGetGrade         = `SELECT grade_id FROM users WHERE id=$1`
+)
+
 type userRepository struct {
 	db *pgxpool.Pool
 }
@@ -24,8 +37,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 	err := r.db.QueryRow(
 		ctx,
-		`SELECT id, name, email, password_hash, grade_id, role, manager_id, created_at
-		 FROM users WHERE email=$1`,
+		userQueryGetByEmail,
 		email,
 	).Scan(
 		&user.ID,
@@ -53,8 +65,7 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*models.User, e
 
 	err := r.db.QueryRow(
 		ctx,
-		`SELECT id, name, email, password_hash, grade_id, role, manager_id, created_at
-		 FROM users WHERE id=$1`,
+		userQueryGetByID,
 		id,
 	).Scan(
 		&user.ID,
@@ -82,9 +93,7 @@ func (r *userRepository) Create(ctx context.Context, tx pgx.Tx, user *models.Use
 
 	err := tx.QueryRow(
 		ctx,
-		`INSERT INTO users (name, email, password_hash, grade_id, role, manager_id)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id`,
+		userQueryCreate,
 		user.Name,
 		user.Email,
 		user.PasswordHash,
@@ -105,7 +114,7 @@ func (r *userRepository) CheckEmailExists(ctx context.Context, tx pgx.Tx, email 
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT COUNT(*) FROM users WHERE email=$1`,
+		userQueryCheckEmailExists,
 		email,
 	).Scan(&count)
 
@@ -121,7 +130,7 @@ func (r *userRepository) GetRole(ctx context.Context, tx pgx.Tx, userID int64) (
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT role FROM users WHERE id=$1`,
+		userQueryGetRole,
 		userID,
 	).Scan(&role)
 
@@ -137,7 +146,7 @@ func (r *userRepository) GetGrade(ctx context.Context, tx pgx.Tx, userID int64) 
 
 	err := tx.QueryRow(
 		ctx,
-		`SELECT grade_id FROM users WHERE id=$1`,
+		userQueryGetGrade,
 		userID,
 	).Scan(&gradeID)
 

@@ -3,6 +3,7 @@ package helpers
 import (
 	"context"
 	"fmt"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 
 	"github.com/jackc/pgx/v5"
@@ -22,22 +23,22 @@ func MakeDecision(
 	decision := Decide(requestType, condition, value)
 	fmt.Println("DEBUG Decide returned:", decision)
 
-	if decision == "AUTO_APPROVE" {
+	if decision == constants.StatusAutoApprove {
 		return DecisionResult{
-			Status:  "AUTO_APPROVED",
+			Status:  constants.StatusAutoApproved,
 			Message: requestType + " approved by system",
 		}
 	}
 
 	return DecisionResult{
-		Status:  "PENDING",
+		Status:  constants.StatusPending,
 		Message: requestType + " submitted for approval",
 	}
 }
 
 func CanCancel(status string) error {
 	switch status {
-	case "APPROVED", "REJECTED", "CANCELLED":
+	case constants.StatusApproved, constants.StatusRejected, constants.StatusCancelled:
 		return apperrors.ErrRequestCannotCancel
 	default:
 		return nil
@@ -65,15 +66,15 @@ func Decide(
 	switch requestType {
 	case "LEAVE":
 		if EvaluateLeaveRule(rule, int(value)) {
-			return "AUTO_APPROVE"
+			return constants.StatusAutoApprove
 		}
 	case "EXPENSE":
 		if EvaluateExpenseRule(rule, value) {
-			return "AUTO_APPROVE"
+			return constants.StatusAutoApprove
 		}
 	case "DISCOUNT":
 		if EvaluateDiscountRule(rule, value) {
-			return "AUTO_APPROVE"
+			return constants.StatusAutoApprove
 		}
 	}
 

@@ -62,6 +62,10 @@ func main() {
 		leaveRepo, expenseRepo, discountRepo, holidayRepo, database.DB,
 	)
 
+	// Aggregated My Requests
+	aggregatedRepo := repositories.NewAggregatedRepository(database.DB)
+	myRequestsAllService := services.NewMyRequestsServices(aggregatedRepo)
+
 	router := gin.Default()
 
 	router.Use(cors.New(cors.Config{
@@ -87,6 +91,7 @@ func main() {
 		autoRejectService,
 		discountService,
 		discountApprovalService,
+		myRequestsAllService,
 	)
 
 	loc, _ := time.LoadLocation("Asia/Kolkata")

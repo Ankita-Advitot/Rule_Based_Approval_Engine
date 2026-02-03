@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"rule-based-approval-engine/internal/app/repositories"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/models"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/utils"
@@ -82,17 +83,17 @@ func (s *AuthService) RegisterUser(ctx context.Context, name, email, password st
 
 	switch email {
 	case AdminEmail:
-		role = "ADMIN"
+		role = constants.RoleAdmin
 		gradeID = 3
 		managerID = nil
 
 	case ManagerEmail:
-		role = "MANAGER"
+		role = constants.RoleManager
 		gradeID = 2
 		managerID = &AdminID
 
 	default:
-		role = "EMPLOYEE"
+		role = constants.RoleEmployee
 		gradeID = 1
 		managerID = &ManagerID
 	}
@@ -118,7 +119,7 @@ func (s *AuthService) RegisterUser(ctx context.Context, name, email, password st
 	log.Println("User inserted successfully, userID:", userID)
 
 	// Initialize balances ONLY for employee & manager
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		log.Println("Initializing balances for user:", userID)
 
 		err = s.balanceRepo.InitializeBalances(ctx, tx, userID, gradeID)

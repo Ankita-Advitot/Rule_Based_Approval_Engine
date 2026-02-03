@@ -5,13 +5,14 @@ import (
 
 	"rule-based-approval-engine/internal/app/repositories"
 	"rule-based-approval-engine/internal/app/services/helpers"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/utils"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// LeaveApprovalService handles business logic for leave approval operations
+// handles business logic for leave approval operations
 type LeaveApprovalService struct {
 	leaveReqRepo repositories.LeaveRequestRepository
 	balanceRepo  repositories.BalanceRepository
@@ -19,7 +20,7 @@ type LeaveApprovalService struct {
 	db           *pgxpool.Pool
 }
 
-// NewLeaveApprovalService creates a new instance of LeaveApprovalService
+// creates a new instance of LeaveApprovalService
 func NewLeaveApprovalService(
 	leaveReqRepo repositories.LeaveRequestRepository,
 	balanceRepo repositories.BalanceRepository,
@@ -34,19 +35,19 @@ func NewLeaveApprovalService(
 	}
 }
 
-// GetPendingLeaveRequests retrieves pending leave requests based on role
+// retrieves pending leave requests based on role
 func (s *LeaveApprovalService) GetPendingLeaveRequests(ctx context.Context, role string, approverID int64) ([]map[string]interface{}, error) {
 	switch role {
-	case "MANAGER":
+	case constants.RoleManager:
 		return s.leaveReqRepo.GetPendingForManager(ctx, approverID)
-	case "ADMIN":
+	case constants.RoleAdmin:
 		return s.leaveReqRepo.GetPendingForAdmin(ctx)
 	default:
 		return nil, apperrors.ErrUnauthorizedRole
 	}
 }
 
-// ApproveLeave approves a leave request
+// approves a leave request
 func (s *LeaveApprovalService) ApproveLeave(
 	ctx context.Context,
 	role string,
@@ -54,7 +55,7 @@ func (s *LeaveApprovalService) ApproveLeave(
 	approvalComment string,
 ) error {
 	// check role
-	if role == "EMPLOYEE" {
+	if role == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 
@@ -102,7 +103,7 @@ func (s *LeaveApprovalService) ApproveLeave(
 
 	// Default comment if not provided
 	if approvalComment == "" {
-		approvalComment = "Approved"
+		approvalComment = constants.StatusApproved
 	}
 
 	// Update request
@@ -122,7 +123,7 @@ func (s *LeaveApprovalService) RejectLeave(
 	rejectionComment string,
 ) error {
 	// check role
-	if role == "EMPLOYEE" {
+	if role == constants.RoleEmployee {
 		return apperrors.ErrEmployeeCannotApprove
 	}
 

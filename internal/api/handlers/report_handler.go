@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"rule-based-approval-engine/internal/app/services"
+	"rule-based-approval-engine/internal/constants"
 	"rule-based-approval-engine/internal/pkg/apperrors"
 	"rule-based-approval-engine/internal/pkg/response"
 
@@ -20,7 +21,7 @@ func NewReportHandler(reportService *services.ReportService) *ReportHandler {
 
 func (h *ReportHandler) GetRequestStatusDistribution(c *gin.Context) {
 	role := c.GetString("role")
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		handleReportError(c, apperrors.ErrAdminOnly, "Unauthorized access")
 		return
 	}
@@ -41,7 +42,7 @@ func (h *ReportHandler) GetRequestStatusDistribution(c *gin.Context) {
 
 func (h *ReportHandler) GetRequestsByType(c *gin.Context) {
 	role := c.GetString("role")
-	if role != "ADMIN" {
+	if role != constants.RoleAdmin {
 		handleReportError(c, apperrors.ErrAdminOnly, "Unauthorized access")
 		return
 	}
